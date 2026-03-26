@@ -15,6 +15,8 @@ import { type Category, categoryConfig } from "../data/products";
 import { useProducts } from "../hooks/useProducts";
 import { useCartStore } from "../store/cartStore";
 
+const DEFAULT_LOCATION = "Delivering to Areas Near Atraulia";
+
 interface HomeTabProps {
   isDark: boolean;
   onToggleTheme: () => void;
@@ -24,6 +26,9 @@ interface HomeTabProps {
 export function HomeTab({ isDark, onToggleTheme, onTabChange }: HomeTabProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [countdown, setCountdown] = useState(14 * 60 + 59);
+  const [deliveryLocation, setDeliveryLocation] = useState(
+    () => localStorage.getItem("deliveryLocation") || DEFAULT_LOCATION,
+  );
   const getTotalItems = useCartStore((s) => s.getTotalItems);
   const { products, loading } = useProducts();
 
@@ -32,6 +37,20 @@ export function HomeTab({ isDark, onToggleTheme, onTabChange }: HomeTabProps) {
       setCountdown((prev) => (prev > 0 ? prev - 1 : 14 * 60 + 59));
     }, 1000);
     return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const handleStorage = () => {
+      setDeliveryLocation(
+        localStorage.getItem("deliveryLocation") || DEFAULT_LOCATION,
+      );
+    };
+    window.addEventListener("storage", handleStorage);
+    window.addEventListener("deliveryLocationUpdated", handleStorage);
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("deliveryLocationUpdated", handleStorage);
+    };
   }, []);
 
   const formatTime = (s: number) => {
@@ -66,7 +85,7 @@ export function HomeTab({ isDark, onToggleTheme, onTabChange }: HomeTabProps) {
             </h1>
             <div className="flex items-center gap-1 text-xs text-muted-foreground">
               <MapPin size={11} />
-              <span>📍 Sector 18, Noida</span>
+              <span>📍 {deliveryLocation}</span>
             </div>
           </div>
           <div className="flex items-center gap-2">

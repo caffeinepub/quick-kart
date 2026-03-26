@@ -26,6 +26,7 @@ import {
   Package,
   Plus,
   RefreshCw,
+  Settings,
   ShoppingBag,
   Trash2,
 } from "lucide-react";
@@ -75,10 +76,11 @@ const EMPTY_FORM: ProductForm = {
   imageUrl: "",
 };
 
-const PIN = "1234";
+const PIN = "2477";
 const PIN_KEY = "adminPinVerified";
+const DEFAULT_LOCATION = "Delivering to Areas Near Atraulia";
 
-type AdminSection = "products" | "orders";
+type AdminSection = "products" | "orders" | "settings";
 
 export function AdminTab({ onBack }: AdminTabProps) {
   const [pinInput, setPinInput] = useState("");
@@ -100,6 +102,12 @@ export function AdminTab({ onBack }: AdminTabProps) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [confirmingId, setConfirmingId] = useState<bigint | null>(null);
+
+  // Settings state
+  const [locationText, setLocationText] = useState(
+    () => localStorage.getItem("deliveryLocation") || DEFAULT_LOCATION,
+  );
+  const [savingLocation, setSavingLocation] = useState(false);
 
   const fetchOrders = useCallback(async () => {
     setOrdersLoading(true);
@@ -135,6 +143,16 @@ export function AdminTab({ onBack }: AdminTabProps) {
     } finally {
       setConfirmingId(null);
     }
+  };
+
+  const handleSaveLocation = () => {
+    setSavingLocation(true);
+    const trimmed = locationText.trim() || DEFAULT_LOCATION;
+    localStorage.setItem("deliveryLocation", trimmed);
+    setLocationText(trimmed);
+    window.dispatchEvent(new Event("deliveryLocationUpdated"));
+    toast.success("✅ Location updated!");
+    setSavingLocation(false);
   };
 
   const handlePinSubmit = () => {
@@ -310,6 +328,17 @@ export function AdminTab({ onBack }: AdminTabProps) {
     );
   }
 
+  const headerSubtitle =
+    activeSection === "products"
+      ? loading
+        ? "Loading..."
+        : `${products.length} products`
+      : activeSection === "orders"
+        ? ordersLoading
+          ? "Loading..."
+          : `${orders.length} orders`
+        : "App Settings";
+
   return (
     <div
       className="flex flex-col min-h-screen pb-20 bg-background"
@@ -331,18 +360,10 @@ export function AdminTab({ onBack }: AdminTabProps) {
               <h1 className="text-lg font-black orange-gradient-text">
                 ⚙️ Admin Panel
               </h1>
-              <p className="text-xs text-muted-foreground">
-                {activeSection === "products"
-                  ? loading
-                    ? "Loading..."
-                    : `${products.length} products`
-                  : ordersLoading
-                    ? "Loading..."
-                    : `${orders.length} orders`}
-              </p>
+              <p className="text-xs text-muted-foreground">{headerSubtitle}</p>
             </div>
           </div>
-          {activeSection === "products" ? (
+          {activeSection === "products" && (
             <Button
               size="sm"
               className="orange-gradient text-white font-bold rounded-full"
@@ -352,7 +373,8 @@ export function AdminTab({ onBack }: AdminTabProps) {
               <Plus size={16} className="mr-1" />
               Add
             </Button>
-          ) : (
+          )}
+          {activeSection === "orders" && (
             <button
               type="button"
               onClick={fetchOrders}
@@ -393,6 +415,18 @@ export function AdminTab({ onBack }: AdminTabProps) {
             data-ocid="admin.orders.tab"
           >
             🧾 Orders
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveSection("settings")}
+            className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${
+              activeSection === "settings"
+                ? "orange-gradient text-white"
+                : "bg-muted text-muted-foreground"
+            }`}
+            data-ocid="admin.settings.tab"
+          >
+            ⚙️ Settings
           </button>
         </div>
       </header>
@@ -640,6 +674,56 @@ export function AdminTab({ onBack }: AdminTabProps) {
               })}
             </AnimatePresence>
           )}
+        </div>
+      )}
+
+      {/* Settings Section */}
+      {activeSection === "settings" && (
+        <div className="px-4 pt-6 space-y-4">
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-card rounded-2xl border border-border p-5 space-y-4"
+            data-ocid="admin.settings.panel"
+          >
+            <div className="flex items-center gap-3 mb-1">
+              <div className="w-9 h-9 rounded-xl orange-gradient flex items-center justify-center">
+                <Settings size={16} className="text-white" />
+              </div>
+              <div>
+                <p className="font-black text-sm">Delivery Location</p>
+                <p className="text-xs text-muted-foreground">
+                  Shown on the home screen header
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="location-input">Location Text</Label>
+              <Input
+                id="location-input"
+                placeholder={DEFAULT_LOCATION}
+                value={locationText}
+                onChange={(e) => setLocationText(e.target.value)}
+                data-ocid="admin.settings.input"
+              />
+              <p className="text-xs text-muted-foreground">
+                This text appears next to the 📍 pin on the home screen.
+              </p>
+            </div>
+
+            <Button
+              className="w-full orange-gradient text-white font-bold"
+              onClick={handleSaveLocation}
+              disabled={savingLocation}
+              data-ocid="admin.settings.save_button"
+            >
+              {savingLocation ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              Save Location
+            </Button>
+          </motion.div>
         </div>
       )}
 
