@@ -1,0 +1,249 @@
+import {
+  ChevronRight,
+  CreditCard,
+  Gift,
+  Globe,
+  Heart,
+  HelpCircle,
+  Info,
+  MapPin,
+  Moon,
+  Settings,
+  ShoppingBag,
+  Star,
+  Sun,
+  User,
+} from "lucide-react";
+import { motion } from "motion/react";
+import { useState } from "react";
+import { QRCodeCard } from "../components/QRCodeCard";
+
+interface ProfileTabProps {
+  isDark: boolean;
+  onToggleTheme: () => void;
+  onAdminPanel: () => void;
+}
+
+const menuItems = [
+  { icon: ShoppingBag, label: "My Orders", badge: "3" },
+  { icon: Heart, label: "Wishlist", badge: null },
+  { icon: MapPin, label: "Saved Addresses", badge: null },
+  { icon: CreditCard, label: "Payment Methods", badge: null },
+  { icon: Gift, label: "Refer & Earn", badge: "₹50", highlight: true },
+  { icon: Star, label: "Loyalty Points", badge: "120 pts", highlight: true },
+  { icon: HelpCircle, label: "Help & Support", badge: null },
+  { icon: Info, label: "About Quick Kart", badge: null },
+];
+
+export function ProfileTab({
+  isDark,
+  onToggleTheme,
+  onAdminPanel,
+}: ProfileTabProps) {
+  const [lang, setLang] = useState<"en" | "hi">("en");
+  const [showQR, setShowQR] = useState(false);
+
+  return (
+    <div className="flex flex-col min-h-screen pb-20" data-ocid="profile.page">
+      <header className="sticky top-0 z-40 bg-background/95 backdrop-blur border-b border-border px-4 py-3">
+        <h1 className="text-lg font-black orange-gradient-text">
+          ⚡ QUICK KART
+        </h1>
+        <p className="text-xs text-muted-foreground">My Profile</p>
+      </header>
+
+      <div className="px-4 pt-5 space-y-4">
+        {/* Avatar */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex items-center gap-4 bg-card rounded-2xl border border-border p-4"
+          data-ocid="profile.card"
+        >
+          <div className="w-16 h-16 rounded-full orange-gradient flex items-center justify-center">
+            <User size={30} className="text-white" />
+          </div>
+          <div>
+            <div className="font-bold text-lg text-foreground">Guest User</div>
+            <div className="text-sm text-muted-foreground">
+              guest@quickkart.app
+            </div>
+            <div className="flex items-center gap-1 mt-1">
+              <Star size={12} className="fill-amber text-amber" />
+              <span className="text-xs font-semibold text-amber">
+                120 Loyalty Points
+              </span>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Menu Items */}
+        <div className="bg-card rounded-2xl border border-border overflow-hidden">
+          {menuItems.map((item, i) => {
+            const Icon = item.icon;
+            return (
+              <motion.button
+                key={item.label}
+                initial={{ opacity: 0, x: -8 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.04 }}
+                className="w-full flex items-center gap-3 px-4 py-3.5 border-b border-border last:border-0 hover:bg-muted/50 transition-colors"
+                data-ocid="profile.menu.button"
+              >
+                <Icon
+                  size={18}
+                  className={
+                    item.highlight ? "text-orange" : "text-muted-foreground"
+                  }
+                />
+                <span className="flex-1 text-sm font-medium text-left text-foreground">
+                  {item.label}
+                </span>
+                {item.badge && (
+                  <span
+                    className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                      item.highlight
+                        ? "bg-orange/20 text-orange"
+                        : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {item.badge}
+                  </span>
+                )}
+                <ChevronRight size={14} className="text-muted-foreground" />
+              </motion.button>
+            );
+          })}
+        </div>
+
+        {/* Admin Panel Button */}
+        <motion.button
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.35 }}
+          onClick={onAdminPanel}
+          className="w-full flex items-center gap-3 px-4 py-3.5 bg-card rounded-2xl border border-orange/30 hover:bg-orange/5 transition-colors"
+          data-ocid="profile.admin.open_modal_button"
+        >
+          <Settings size={18} className="text-orange" />
+          <span className="flex-1 text-sm font-bold text-left text-orange">
+            ⚙️ Admin Panel
+          </span>
+          <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-orange/20 text-orange">
+            Founder
+          </span>
+          <ChevronRight size={14} className="text-orange" />
+        </motion.button>
+
+        {/* Theme Toggle */}
+        <div className="bg-card rounded-2xl border border-border p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              {isDark ? (
+                <Moon size={16} className="text-muted-foreground" />
+              ) : (
+                <Sun size={16} className="text-muted-foreground" />
+              )}
+              <span className="text-sm font-medium">Theme</span>
+            </div>
+            <button
+              type="button"
+              onClick={onToggleTheme}
+              className={`relative w-12 h-6 rounded-full transition-colors ${
+                isDark ? "bg-orange" : "bg-muted"
+              }`}
+              data-ocid="profile.theme.toggle"
+            >
+              <div
+                className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${
+                  isDark ? "translate-x-6" : "translate-x-0.5"
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Language */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Globe size={16} className="text-muted-foreground" />
+              <span className="text-sm font-medium">Language</span>
+            </div>
+            <div className="flex rounded-full border border-border overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setLang("en")}
+                className={`px-3 py-1 text-xs font-bold transition-colors ${
+                  lang === "en"
+                    ? "orange-gradient text-white"
+                    : "text-muted-foreground"
+                }`}
+                data-ocid="profile.lang.toggle"
+              >
+                EN
+              </button>
+              <button
+                type="button"
+                onClick={() => setLang("hi")}
+                className={`px-3 py-1 text-xs font-bold transition-colors ${
+                  lang === "hi"
+                    ? "orange-gradient text-white"
+                    : "text-muted-foreground"
+                }`}
+                data-ocid="profile.lang.toggle"
+              >
+                हिंदी
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* My QR Code */}
+        <div className="bg-card rounded-2xl border border-border p-4">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm font-bold">🎟️ My QR Code</span>
+            <button
+              type="button"
+              onClick={() => setShowQR(!showQR)}
+              className="text-xs text-orange font-semibold"
+              data-ocid="profile.qr.open_modal_button"
+            >
+              {showQR ? "Hide" : "Show"}
+            </button>
+          </div>
+          {showQR && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+            >
+              <QRCodeCard
+                data="QUICKKART|USER|GuestUser|LOYALTY:120"
+                title="Guest User"
+                subtitle="Quick Kart Member"
+              />
+            </motion.div>
+          )}
+          {!showQR && (
+            <p className="text-xs text-muted-foreground">
+              Show at partner store for exclusive discounts and loyalty points
+            </p>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="text-center py-4 text-xs text-muted-foreground">
+          <p>
+            © {new Date().getFullYear()}. Built with ❤️ using{" "}
+            <a
+              href={`https://caffeine.ai?utm_source=caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(typeof window !== "undefined" ? window.location.hostname : "")}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-orange font-semibold"
+            >
+              caffeine.ai
+            </a>
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,135 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --radius: 0.75rem;
+    /* Light mode - Quick Kart brand */
+    --background: 0.975 0.002 240;
+    --foreground: 0.14 0.02 260;
+    --card: 1 0 0;
+    --card-foreground: 0.14 0.02 260;
+    --popover: 1 0 0;
+    --popover-foreground: 0.14 0.02 260;
+    --primary: 0.62 0.22 40;
+    --primary-foreground: 1 0 0;
+    --secondary: 0.94 0.01 240;
+    --secondary-foreground: 0.14 0.02 260;
+    --muted: 0.93 0.008 240;
+    --muted-foreground: 0.52 0.015 250;
+    --accent: 0.76 0.16 60;
+    --accent-foreground: 0.12 0 0;
+    --destructive: 0.62 0.22 22;
+    --destructive-foreground: 1 0 0;
+    --border: 0.88 0.01 240;
+    --input: 0.88 0.01 240;
+    --ring: 0.62 0.22 40;
+    --orange: 0.62 0.22 40;
+    --amber: 0.76 0.16 60;
+    --flash-red: 0.58 0.24 22;
+    --chart-1: 0.646 0.222 41.116;
+    --chart-2: 0.6 0.118 184.704;
+    --chart-3: 0.398 0.07 227.392;
+    --chart-4: 0.828 0.189 84.429;
+    --chart-5: 0.769 0.188 70.08;
+    --sidebar: 0.985 0 0;
+    --sidebar-foreground: 0.145 0 0;
+    --sidebar-primary: 0.205 0 0;
+    --sidebar-primary-foreground: 0.985 0 0;
+    --sidebar-accent: 0.97 0 0;
+    --sidebar-accent-foreground: 0.205 0 0;
+    --sidebar-border: 0.922 0 0;
+    --sidebar-ring: 0.708 0 0;
+  }
+
+  .dark {
+    /* Dark mode - #0E1116 bg, #1B212B cards */
+    --background: 0.13 0.012 255;
+    --foreground: 0.91 0.012 240;
+    --card: 0.18 0.018 255;
+    --card-foreground: 0.91 0.012 240;
+    --popover: 0.2 0.018 255;
+    --popover-foreground: 0.91 0.012 240;
+    --primary: 0.62 0.22 40;
+    --primary-foreground: 1 0 0;
+    --secondary: 0.22 0.018 255;
+    --secondary-foreground: 0.91 0.012 240;
+    --muted: 0.22 0.018 255;
+    --muted-foreground: 0.6 0.015 250;
+    --accent: 0.76 0.16 60;
+    --accent-foreground: 0.1 0 0;
+    --destructive: 0.62 0.24 22;
+    --destructive-foreground: 1 0 0;
+    --border: 0.25 0.018 255;
+    --input: 0.25 0.018 255;
+    --ring: 0.62 0.22 40;
+    --orange: 0.62 0.22 40;
+    --amber: 0.76 0.16 60;
+    --flash-red: 0.58 0.24 22;
+    --chart-1: 0.646 0.222 41.116;
+    --chart-2: 0.6 0.118 184.704;
+    --chart-3: 0.769 0.188 70.08;
+    --chart-4: 0.627 0.265 303.9;
+    --chart-5: 0.645 0.246 16.439;
+    --sidebar: 0.18 0.018 255;
+    --sidebar-foreground: 0.91 0.012 240;
+    --sidebar-primary: 0.62 0.22 40;
+    --sidebar-primary-foreground: 1 0 0;
+    --sidebar-accent: 0.22 0.018 255;
+    --sidebar-accent-foreground: 0.91 0.012 240;
+    --sidebar-border: 0.25 0.018 255;
+    --sidebar-ring: 0.62 0.22 40;
+  }
+
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: "Inter", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+@layer utilities {
+  .orange-gradient {
+    background: linear-gradient(
+      135deg,
+      oklch(0.62 0.22 40),
+      oklch(0.76 0.16 60)
+    );
+  }
+  .orange-gradient-text {
+    background: linear-gradient(135deg, #ff6a3d, #ffb24a);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .flash-gradient {
+    background: linear-gradient(135deg, #ff3d57, #ff6a3d);
+  }
+  .card-hover {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+  .card-hover:hover {
+    transform: scale(1.02);
+    box-shadow: 0 8px 30px rgba(255, 106, 61, 0.15);
+  }
+  .bottom-nav-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
