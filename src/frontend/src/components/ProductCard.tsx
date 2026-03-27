@@ -82,6 +82,16 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
           alt={product.name}
           className="w-full h-full object-cover"
           loading="lazy"
+          onError={(e) => {
+            const target = e.target as HTMLImageElement;
+            target.style.display = "none";
+            const parent = target.parentElement;
+            if (parent) {
+              parent.style.background =
+                "linear-gradient(135deg, #f97316 0%, #fb923c 100%)";
+              parent.innerHTML += `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:2rem">🛍️</div>`;
+            }
+          }}
         />
         {/* Delivery time badge */}
         <div className="absolute bottom-2 left-2 flex items-center gap-1 bg-black/70 text-white text-xs px-2 py-0.5 rounded-full">

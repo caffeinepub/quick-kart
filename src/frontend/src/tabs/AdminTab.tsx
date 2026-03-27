@@ -29,14 +29,17 @@ import {
   Settings,
   ShoppingBag,
   Trash2,
+  Upload,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import { HttpAgent } from "@icp-sdk/core/agent";
 import { ProductCategory } from "../backend";
-import { createActorWithConfig } from "../config";
+import { createActorWithConfig, loadConfig } from "../config";
 import { useProducts } from "../hooks/useProducts";
+import { StorageClient } from "../utils/StorageClient";
 
 interface Order {
   id: bigint;
@@ -97,6 +100,10 @@ export function AdminTab({ onBack }: AdminTabProps) {
   const [submitting, setSubmitting] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Image upload state
+  const [imageUploading, setImageUploading] = useState(false);
+  const [imageUploadProgress, setImageUploadProgress] = useState(0);
 
   // Orders state
   const [orders, setOrders] = useState<Order[]>([]);
@@ -163,6 +170,41 @@ export function AdminTab({ onBack }: AdminTabProps) {
     } else {
       setPinError(true);
       setPinInput("");
+    }
+  };
+
+  const handleImageFileChange = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImageUploading(true);
+    setImageUploadProgress(0);
+    try {
+      const config = await loadConfig();
+      const agent = new HttpAgent({ host: config.backend_host });
+      if (config.backend_host?.includes("localhost")) {
+        await agent.fetchRootKey().catch(() => {});
+      }
+      const storageClient = new StorageClient(
+        config.bucket_name,
+        config.storage_gateway_url,
+        config.backend_canister_id,
+        config.project_id,
+        agent,
+      );
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const { hash } = await storageClient.putFile(bytes, (pct) =>
+        setImageUploadProgress(pct),
+      );
+      const url = await storageClient.getDirectURL(hash);
+      setForm((f) => ({ ...f, imageUrl: url }));
+      toast.success("✅ Image uploaded!");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Image upload failed");
+    } finally {
+      setImageUploading(false);
+      setImageUploadProgress(0);
     }
   };
 
@@ -819,11 +861,56 @@ export function AdminTab({ onBack }: AdminTabProps) {
                 data-ocid="admin.input"
               />
             </div>
-            <div className="space-y-1">
-              <Label htmlFor="p-image">Image URL</Label>
+            {/* Product Image */}
+            <div className="space-y-2">
+              <Label>Product Image</Label>
+              {/* File upload button */}
+              <div className="flex items-center gap-2">
+                <label
+                  htmlFor="p-image-file"
+                  className={`flex items-center gap-2 px-3 py-2 rounded-md border border-dashed border-border cursor-pointer text-sm transition-colors hover:bg-muted ${imageUploading ? "opacity-50 pointer-events-none" : ""}`}
+                >
+                  {imageUploading ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <Upload size={14} />
+                  )}
+                  {imageUploading
+                    ? `Uploading... ${imageUploadProgress}%`
+                    : "Upload from device"}
+                  <input
+                    id="p-image-file"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleImageFileChange}
+                    disabled={imageUploading}
+                  />
+                </label>
+                {form.imageUrl && (
+                  <img
+                    src={form.imageUrl}
+                    alt="preview"
+                    className="w-10 h-10 rounded object-cover border border-border"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = "none";
+                    }}
+                  />
+                )}
+              </div>
+              {/* Progress bar */}
+              {imageUploading && (
+                <div className="w-full bg-muted rounded-full h-1.5">
+                  <div
+                    className="bg-orange-500 h-1.5 rounded-full transition-all"
+                    style={{ width: `${imageUploadProgress}%` }}
+                  />
+                </div>
+              )}
+              {/* URL fallback */}
               <Input
                 id="p-image"
-                placeholder="https://... or /assets/..."
+                placeholder="Or paste image URL (optional fallback)"
                 value={form.imageUrl}
                 onChange={(e) =>
                   setForm((f) => ({ ...f, imageUrl: e.target.value }))
