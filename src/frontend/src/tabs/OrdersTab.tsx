@@ -268,6 +268,20 @@ function OrderCard({ order, index }: { order: Order; index: number }) {
         </div>
       </div>
 
+      {/* WhatsApp Live Location */}
+      <div className="px-4 pb-3">
+        <a
+          href="https://wa.me/916390359267?text=Hi%2C%20here%20is%20my%20live%20location%3A%20"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center justify-center gap-2 w-full bg-green-500 hover:bg-green-600 active:scale-95 transition-all text-white text-sm font-bold rounded-xl py-2.5"
+          data-ocid={`orders.whatsapp.location.${index + 1}`}
+        >
+          <span>📍</span>
+          <span>Send Live Location on WhatsApp</span>
+        </a>
+      </div>
+
       {/* Footer */}
       <div className="px-4 pb-3 flex items-center justify-between">
         <span className="text-xs text-muted-foreground">
