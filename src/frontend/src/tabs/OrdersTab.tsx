@@ -1,249 +1,452 @@
-import { CheckCircle, Home, MapPin, Package, Truck } from "lucide-react";
-import { motion } from "motion/react";
-import { useState } from "react";
+import {
+  CheckCircle,
+  Home,
+  MapPin,
+  Package,
+  RefreshCw,
+  Truck,
+} from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { Order } from "../backend";
 import { DeliveryAddressCard } from "../components/DeliveryAddressCard";
 import { QRCodeCard } from "../components/QRCodeCard";
+import { Skeleton } from "../components/ui/skeleton";
+import { useActor } from "../hooks/useActor";
 import { useAuthStore } from "../store/authStore";
+import { useOrderNotificationStore } from "../store/orderNotificationStore";
 
-const mockAddress = {
-  flat: "Flat 4B",
-  building: "Green Valley Apartments",
-  landmark: "City Mall",
-  area: "Sector 18, Noida",
-  pincode: "201301",
-  type: "Home",
-};
+type OrderStatusKind =
+  | "pendingVerification"
+  | "confirmed"
+  | "outForDelivery"
+  | "delivered";
 
-const steps = [
-  { id: 0, label: "Placed", icon: CheckCircle, done: true },
-  { id: 1, label: "Preparing", icon: Package, done: false, active: true },
-  { id: 2, label: "Out for Delivery", icon: Truck, done: false },
-  { id: 3, label: "Delivered", icon: Home, done: false },
+function getStatusKind(status: Order["status"]): OrderStatusKind {
+  if ("pendingVerification" in status) return "pendingVerification";
+  if ("confirmed" in status) return "confirmed";
+  if ("outForDelivery" in status) return "outForDelivery";
+  if ("delivered" in status) return "delivered";
+  return "pendingVerification";
+}
+
+function getStatusLabel(kind: OrderStatusKind) {
+  switch (kind) {
+    case "pendingVerification":
+      return "⏳ Pending";
+    case "confirmed":
+      return "✅ Confirmed";
+    case "outForDelivery":
+      return "🛵 On The Way";
+    case "delivered":
+      return "📦 Delivered";
+  }
+}
+
+function getStatusColor(kind: OrderStatusKind) {
+  switch (kind) {
+    case "pendingVerification":
+      return "bg-amber-500/20 text-amber-400";
+    case "confirmed":
+      return "bg-blue-500/20 text-blue-400";
+    case "outForDelivery":
+      return "bg-orange/20 text-orange";
+    case "delivered":
+      return "bg-green-500/20 text-green-400";
+  }
+}
+
+function timeAgo(nanos: bigint): string {
+  const ms = Number(nanos / 1_000_000n);
+  const diff = Date.now() - ms;
+  const mins = Math.floor(diff / 60000);
+  const hours = Math.floor(mins / 60);
+  const days = Math.floor(hours / 24);
+  if (days > 0) return `${days}d ago`;
+  if (hours > 0) return `${hours}h ago`;
+  if (mins > 0) return `${mins}m ago`;
+  return "just now";
+}
+
+function parseItems(
+  itemsJson: string,
+): Array<{ name: string; quantity: number; price: number }> {
+  try {
+    const arr = JSON.parse(itemsJson);
+    if (!Array.isArray(arr)) return [];
+    return arr.map((item: Record<string, unknown>) => ({
+      name: (item.name as string) || (item.productName as string) || "Item",
+      quantity: (item.quantity as number) || 1,
+      price: (item.price as number) || (item.discountedPrice as number) || 0,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+function parseAddress(addressStr: string) {
+  try {
+    const parsed = JSON.parse(addressStr);
+    return {
+      flat: parsed.flat || parsed.address || addressStr,
+      building: parsed.building || "",
+      landmark: parsed.landmark || "",
+      area: parsed.area || "",
+      pincode: parsed.pincode || "",
+      type: parsed.type || "Home",
+    };
+  } catch {
+    return {
+      flat: addressStr,
+      building: "",
+      landmark: "",
+      area: "",
+      pincode: "",
+      type: "Home",
+    };
+  }
+}
+
+const STEPPER_STEPS = [
+  { id: 0, label: "Placed", icon: CheckCircle },
+  { id: 1, label: "Confirmed", icon: Package },
+  { id: 2, label: "On The Way", icon: Truck },
+  { id: 3, label: "Delivered", icon: Home },
 ];
 
-export function OrdersTab() {
+function statusToStep(kind: OrderStatusKind): number {
+  switch (kind) {
+    case "pendingVerification":
+      return 0;
+    case "confirmed":
+      return 1;
+    case "outForDelivery":
+      return 2;
+    case "delivered":
+      return 3;
+  }
+}
+
+function OrderCard({ order, index }: { order: Order; index: number }) {
   const [showTracking, setShowTracking] = useState(false);
-  const { user, isLoggedIn } = useAuthStore();
+  const statusKind = getStatusKind(order.status);
+  const currentStep = statusToStep(statusKind);
+  const items = parseItems(order.itemsJson);
+  const address = parseAddress(order.address);
+  const isUPI = "upi" in order.paymentMethod;
 
   return (
-    <div className="flex flex-col min-h-screen pb-20" data-ocid="orders.page">
-      <header className="sticky top-0 z-40 bg-background/95 backdrop-blur border-b border-border px-4 py-3">
-        <h1 className="text-lg font-black orange-gradient-text">
-          ⚡ QUICK KART
-        </h1>
-        <p className="text-xs text-muted-foreground">My Orders</p>
-      </header>
-
-      <div className="px-4 pt-4 space-y-4">
-        {/* Auth notice */}
-        {!isLoggedIn && (
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-card rounded-xl border border-border p-4 text-center"
-            data-ocid="orders.login.card"
-          >
-            <p className="text-sm text-muted-foreground">
-              🔐 Login to view your order history
-            </p>
-          </motion.div>
-        )}
-
-        {/* User order IDs */}
-        {isLoggedIn && user && user.orderIds.length > 0 && (
-          <div data-ocid="orders.user.list">
-            <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wide mb-2">
-              Your Orders
-            </h2>
-            {user.orderIds.map((id, i) => (
-              <motion.div
-                key={id}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.05 }}
-                className="bg-card rounded-xl border border-border px-4 py-3 mb-2"
-                data-ocid={`orders.item.${i + 1}`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold">Order #{id}</span>
-                  <span className="text-xs font-bold text-green-500">
-                    ✓ Placed
-                  </span>
-                </div>
-              </motion.div>
-            ))}
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: index * 0.06 }}
+      className="bg-card rounded-2xl border border-border overflow-hidden"
+      data-ocid={`orders.item.${index + 1}`}
+    >
+      {/* Header */}
+      <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+        <div>
+          <span className="text-sm font-bold text-foreground">
+            Order #{Number(order.id)}
+          </span>
+          <div className="text-xs text-muted-foreground mt-0.5">
+            {items.length} item{items.length !== 1 ? "s" : ""} · ₹
+            {order.totalAmount} · {timeAgo(order.createdAt)}
           </div>
-        )}
-
-        {/* Active Order Card (demo) */}
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-card rounded-2xl border border-border overflow-hidden"
-          data-ocid="orders.item.1"
+        </div>
+        <span
+          className={`text-xs font-bold px-2.5 py-1 rounded-full ${getStatusColor(statusKind)}`}
         >
-          {/* Header */}
-          <div className="px-4 py-3 border-b border-border flex items-center justify-between">
-            <div>
-              <span className="text-sm font-bold text-foreground">
-                Order #1234
-              </span>
-              <div className="text-xs text-muted-foreground mt-0.5">
-                3 items · ₹348
-              </div>
-            </div>
-            <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-amber/20 text-amber">
-              🍳 Preparing
+          {getStatusLabel(statusKind)}
+        </span>
+      </div>
+
+      {/* Items */}
+      <div className="px-4 py-3 space-y-2">
+        {items.map((item, i) => (
+          // biome-ignore lint/suspicious/noArrayIndexKey: items have no stable id
+          <div key={i} className="flex items-center gap-2 text-sm">
+            <span className="w-5 h-5 rounded bg-muted flex items-center justify-center text-xs">
+              🛍️
             </span>
+            <span className="text-foreground">
+              {item.name} × {item.quantity}
+            </span>
+            <span className="ml-auto text-muted-foreground">₹{item.price}</span>
           </div>
+        ))}
+        {items.length === 0 && (
+          <p className="text-xs text-muted-foreground">
+            No item details available
+          </p>
+        )}
+      </div>
 
-          {/* Items */}
-          <div className="px-4 py-3 space-y-2">
-            <div className="flex items-center gap-2 text-sm">
-              <span className="w-5 h-5 rounded bg-muted flex items-center justify-center text-xs">
-                🍕
-              </span>
-              <span className="text-foreground">Margherita Pizza × 1</span>
-              <span className="ml-auto text-muted-foreground">₹299</span>
-            </div>
-            <div className="flex items-center gap-2 text-sm">
-              <span className="w-5 h-5 rounded bg-muted flex items-center justify-center text-xs">
-                🥤
-              </span>
-              <span className="text-foreground">Coca Cola × 1</span>
-              <span className="ml-auto text-muted-foreground">₹40</span>
-            </div>
-          </div>
-
-          {/* Status Stepper */}
-          <div className="px-4 py-3 border-t border-border">
-            <div className="flex items-center justify-between relative">
+      {/* Status Stepper */}
+      <div className="px-4 py-3 border-t border-border">
+        <div className="flex items-center justify-between relative">
+          <div
+            className="absolute top-3 left-0 right-0 h-0.5 bg-border z-0"
+            style={{ margin: "0 16px" }}
+          />
+          {STEPPER_STEPS.map((step) => {
+            const Icon = step.icon;
+            const isDone = step.id < currentStep;
+            const isActive = step.id === currentStep;
+            return (
               <div
-                className="absolute top-3 left-0 right-0 h-0.5 bg-border z-0"
-                style={{ margin: "0 16px" }}
-              />
-              {steps.map((step) => {
-                const Icon = step.icon;
-                return (
-                  <div
-                    key={step.id}
-                    className="flex flex-col items-center gap-1 z-10 relative"
-                  >
-                    <div
-                      className={`w-7 h-7 rounded-full flex items-center justify-center ${
-                        step.done
-                          ? "bg-green-500"
-                          : step.active
-                            ? "bg-orange"
-                            : "bg-muted"
-                      }`}
-                    >
-                      {step.done ? (
-                        <CheckCircle size={14} className="text-white" />
-                      ) : (
-                        <Icon
-                          size={13}
-                          className={
-                            step.active ? "text-white" : "text-muted-foreground"
-                          }
-                        />
-                      )}
-                    </div>
-                    <span
-                      className={`text-xs text-center leading-tight ${
-                        step.done || step.active
-                          ? "text-foreground font-semibold"
-                          : "text-muted-foreground"
-                      }`}
-                      style={{ maxWidth: 56 }}
-                    >
-                      {step.label}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+                key={step.id}
+                className="flex flex-col items-center gap-1 z-10 relative"
+              >
+                <div
+                  className={`w-7 h-7 rounded-full flex items-center justify-center ${
+                    isDone
+                      ? "bg-green-500"
+                      : isActive
+                        ? "bg-orange"
+                        : "bg-muted"
+                  }`}
+                >
+                  {isDone ? (
+                    <CheckCircle size={14} className="text-white" />
+                  ) : (
+                    <Icon
+                      size={13}
+                      className={
+                        isActive ? "text-white" : "text-muted-foreground"
+                      }
+                    />
+                  )}
+                </div>
+                <span
+                  className={`text-xs text-center leading-tight ${
+                    isDone || isActive
+                      ? "text-foreground font-semibold"
+                      : "text-muted-foreground"
+                  }`}
+                  style={{ maxWidth: 56 }}
+                >
+                  {step.label}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
-          {/* ETA */}
-          <div className="px-4 pb-3 flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">
-              ⚡ Estimated: ~18 minutes
-            </span>
-            <button
-              type="button"
-              onClick={() => setShowTracking(!showTracking)}
-              className="text-xs font-bold text-orange border border-orange/40 rounded-full px-3 py-1.5"
-              data-ocid="orders.track.button"
-            >
-              {showTracking ? "Hide Tracking" : "Track Order"}
-            </button>
-          </div>
-        </motion.div>
+      {/* Footer */}
+      <div className="px-4 pb-3 flex items-center justify-between">
+        <span className="text-xs text-muted-foreground">
+          {isUPI ? "📱 UPI" : "💵 Cash on Delivery"}
+        </span>
+        <button
+          type="button"
+          onClick={() => setShowTracking(!showTracking)}
+          className="text-xs font-bold text-orange border border-orange/40 rounded-full px-3 py-1.5"
+          data-ocid={`orders.track.button.${index + 1}`}
+        >
+          {showTracking ? "Hide Tracking" : "Track Order"}
+        </button>
+      </div>
 
-        {/* Tracking section */}
+      {/* Tracking */}
+      <AnimatePresence>
         {showTracking && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            className="space-y-3"
-            data-ocid="orders.tracking.panel"
+            className="px-4 pb-4 space-y-3"
+            data-ocid={`orders.tracking.panel.${index + 1}`}
           >
             <QRCodeCard
-              data="QUICKKART|ORDER#1234|₹348|Sector18 Noida"
+              data={`QUICKKART|ORDER#${Number(order.id)}|₹${order.totalAmount}|${address.area}`}
               title="Order Verification QR"
               subtitle="Share with delivery partner"
             />
-
             <div>
               <h3 className="text-sm font-bold text-muted-foreground uppercase tracking-wide mb-2">
                 <MapPin size={13} className="inline mr-1" />
                 Delivery Address
               </h3>
-              <DeliveryAddressCard address={mockAddress} />
+              <DeliveryAddressCard address={address} />
             </div>
           </motion.div>
         )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
 
-        {/* Past Orders */}
-        <div>
-          <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wide mb-3">
-            Past Orders
-          </h2>
-          <div
-            className="bg-card rounded-xl border border-border px-4 py-3"
-            data-ocid="orders.item.2"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-sm font-semibold">Order #1189</span>
-                <div className="text-xs text-muted-foreground mt-0.5">
-                  2 items · ₹189 · 2 days ago
-                </div>
-              </div>
-              <span className="text-xs text-green-500 font-semibold">
-                ✓ Delivered
-              </span>
-            </div>
+export function OrdersTab() {
+  const { user, isLoggedIn } = useAuthStore();
+  const { actor, isFetching } = useActor();
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const fetchOrders = useCallback(
+    async (showSpinner = false) => {
+      if (!actor || isFetching || !isLoggedIn || !user) return;
+      if (showSpinner) setRefreshing(true);
+      try {
+        const all = await actor.getOrders();
+        const orderIdSet = new Set(user.orderIds.map(String));
+        const filtered = all
+          .filter((o) => orderIdSet.has(String(Number(o.id))))
+          .sort((a, b) => Number(b.createdAt - a.createdAt));
+        setOrders(filtered);
+        useOrderNotificationStore
+          .getState()
+          .setCurrentOrderCount(filtered.length);
+        setLastUpdated(new Date());
+      } catch (e) {
+        console.error("Failed to fetch orders:", e);
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [actor, isFetching, isLoggedIn, user],
+  );
+
+  useEffect(() => {
+    if (!isLoggedIn || !actor || isFetching) {
+      setLoading(false);
+      return;
+    }
+    fetchOrders();
+    intervalRef.current = setInterval(() => fetchOrders(), 10000);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [actor, isFetching, isLoggedIn, fetchOrders]);
+
+  const lastUpdatedText = lastUpdated
+    ? (() => {
+        const mins = Math.floor((Date.now() - lastUpdated.getTime()) / 60000);
+        return mins < 1 ? "just now" : `${mins}m ago`;
+      })()
+    : null;
+
+  return (
+    <div className="flex flex-col min-h-screen pb-20" data-ocid="orders.page">
+      <header className="sticky top-0 z-40 bg-background/95 backdrop-blur border-b border-border px-4 py-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-lg font-black orange-gradient-text">
+              ⚡ QUICK KART
+            </h1>
+            <p className="text-xs text-muted-foreground">My Orders</p>
           </div>
-          <div
-            className="bg-card rounded-xl border border-border px-4 py-3 mt-2"
-            data-ocid="orders.item.3"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-sm font-semibold">Order #1102</span>
-                <div className="text-xs text-muted-foreground mt-0.5">
-                  1 item · ₹249 · 5 days ago
-                </div>
-              </div>
-              <span className="text-xs text-green-500 font-semibold">
-                ✓ Delivered
-              </span>
+          {isLoggedIn && (
+            <div className="flex flex-col items-end gap-0.5">
+              <button
+                type="button"
+                onClick={() => fetchOrders(true)}
+                disabled={refreshing || loading}
+                className="p-2 rounded-full border border-border hover:bg-muted transition-colors"
+                data-ocid="orders.refresh.button"
+              >
+                <motion.div
+                  animate={{ rotate: refreshing ? 360 : 0 }}
+                  transition={
+                    refreshing
+                      ? {
+                          repeat: Number.POSITIVE_INFINITY,
+                          duration: 0.8,
+                          ease: "linear",
+                        }
+                      : {}
+                  }
+                >
+                  <RefreshCw size={16} className="text-muted-foreground" />
+                </motion.div>
+              </button>
+              {lastUpdatedText && (
+                <span className="text-[10px] text-muted-foreground">
+                  Updated {lastUpdatedText}
+                </span>
+              )}
             </div>
-          </div>
+          )}
         </div>
+      </header>
+
+      <div className="px-4 pt-4 space-y-4">
+        {/* Not logged in */}
+        {!isLoggedIn && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-card rounded-xl border border-border p-6 text-center"
+            data-ocid="orders.login.card"
+          >
+            <p className="text-2xl mb-2">🔐</p>
+            <p className="text-sm font-semibold text-foreground">
+              Login to view your orders
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Sign in to track your order history
+            </p>
+          </motion.div>
+        )}
+
+        {/* Loading skeletons */}
+        {isLoggedIn && loading && (
+          <div className="space-y-3" data-ocid="orders.loading_state">
+            {[1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="bg-card rounded-2xl border border-border overflow-hidden"
+              >
+                <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+                  <div className="space-y-1">
+                    <Skeleton className="h-4 w-28" />
+                    <Skeleton className="h-3 w-36" />
+                  </div>
+                  <Skeleton className="h-6 w-20 rounded-full" />
+                </div>
+                <div className="px-4 py-3 space-y-2">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-3/4" />
+                </div>
+                <div className="px-4 py-3 border-t border-border">
+                  <Skeleton className="h-8 w-full rounded-lg" />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Empty state */}
+        {isLoggedIn && !loading && orders.length === 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-card rounded-xl border border-border p-8 text-center"
+            data-ocid="orders.empty_state"
+          >
+            <p className="text-3xl mb-3">📦</p>
+            <p className="text-sm font-semibold text-foreground">
+              No orders yet
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              Your orders will appear here after you place them
+            </p>
+          </motion.div>
+        )}
+
+        {/* Order cards */}
+        {isLoggedIn && !loading && orders.length > 0 && (
+          <div className="space-y-4" data-ocid="orders.list">
+            {orders.map((order, i) => (
+              <OrderCard key={String(order.id)} order={order} index={i} />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

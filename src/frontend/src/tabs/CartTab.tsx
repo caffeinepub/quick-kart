@@ -131,6 +131,10 @@ export function CartTab({ onLoginRequired }: { onLoginRequired: () => void }) {
       const numId = Number(id);
       setOrderId(numId);
       addOrderId(numId);
+      toast.success(
+        "🎉 Order placed successfully! Estimated delivery in 10–30 mins.",
+        { duration: 5000 },
+      );
       clearCart();
       setStep("success-cod");
     } catch (e) {
@@ -155,6 +159,9 @@ export function CartTab({ onLoginRequired }: { onLoginRequired: () => void }) {
       const numId = Number(id);
       setOrderId(numId);
       addOrderId(numId);
+      toast.success("✅ Order received! Payment verification pending.", {
+        duration: 5000,
+      });
       clearCart();
       setStep("success-upi");
     } catch (e) {

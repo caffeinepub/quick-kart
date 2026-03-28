@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { BottomNav } from "./components/BottomNav";
 import { LoginScreen } from "./screens/LoginScreen";
 import { useAuthStore } from "./store/authStore";
+import { useOrderNotificationStore } from "./store/orderNotificationStore";
 import { AdminTab } from "./tabs/AdminTab";
 import { CartTab } from "./tabs/CartTab";
 import { CategoriesTab } from "./tabs/CategoriesTab";
@@ -110,7 +111,15 @@ export default function App() {
       </AnimatePresence>
 
       {!showAdmin && (
-        <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
+        <BottomNav
+          activeTab={activeTab}
+          onTabChange={(tab) => {
+            setActiveTab(tab);
+            if (tab === "orders") {
+              useOrderNotificationStore.getState().markOrdersSeen();
+            }
+          }}
+        />
       )}
 
       <AnimatePresence>

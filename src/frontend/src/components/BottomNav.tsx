@@ -1,6 +1,7 @@
 import { ClipboardList, Grid3x3, Home, ShoppingCart, User } from "lucide-react";
 import { motion } from "motion/react";
 import { useCartStore } from "../store/cartStore";
+import { useOrderNotificationStore } from "../store/orderNotificationStore";
 
 type Tab = "home" | "categories" | "orders" | "cart" | "profile";
 
@@ -20,6 +21,8 @@ const tabs = [
 export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
   const getTotalItems = useCartStore((s) => s.getTotalItems);
   const cartCount = getTotalItems();
+  const getNewOrderCount = useOrderNotificationStore((s) => s.getNewOrderCount);
+  const newOrderCount = getNewOrderCount();
 
   return (
     <nav
@@ -51,6 +54,15 @@ export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
                     className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-orange text-white text-xs flex items-center justify-center font-bold"
                   >
                     {cartCount > 9 ? "9+" : cartCount}
+                  </motion.span>
+                )}
+                {tab.id === "orders" && newOrderCount > 0 && (
+                  <motion.span
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-500 text-white text-xs flex items-center justify-center font-bold"
+                  >
+                    {newOrderCount > 9 ? "9+" : newOrderCount}
                   </motion.span>
                 )}
               </div>
