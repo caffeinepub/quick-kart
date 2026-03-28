@@ -125,7 +125,7 @@ export function CartTab({ onLoginRequired }: { onLoginRequired: () => void }) {
         itemsJson: JSON.stringify(items),
         totalAmount: total,
         paymentMethod: { __kind__: "cod" },
-        address: JSON.stringify(savedAddress),
+        address: JSON.stringify({ ...savedAddress, phone: user?.phone ?? "" }),
         customerName: user?.name ?? "Guest",
       });
       const numId = Number(id);
@@ -153,7 +153,7 @@ export function CartTab({ onLoginRequired }: { onLoginRequired: () => void }) {
         itemsJson: JSON.stringify(items),
         totalAmount: total,
         paymentMethod: { __kind__: "upi" },
-        address: JSON.stringify(savedAddress),
+        address: JSON.stringify({ ...savedAddress, phone: user?.phone ?? "" }),
         customerName: user?.name ?? "Guest",
       });
       const numId = Number(id);

@@ -8,6 +8,7 @@ import { useOrderNotificationStore } from "./store/orderNotificationStore";
 import { AdminTab } from "./tabs/AdminTab";
 import { CartTab } from "./tabs/CartTab";
 import { CategoriesTab } from "./tabs/CategoriesTab";
+import { DeliveryAgentPanel } from "./tabs/DeliveryAgentPanel";
 import { HomeTab } from "./tabs/HomeTab";
 import { OrdersTab } from "./tabs/OrdersTab";
 import { ProfileTab } from "./tabs/ProfileTab";
@@ -18,6 +19,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>("home");
   const [isDark, setIsDark] = useState(true);
   const [showAdmin, setShowAdmin] = useState(false);
+  const [showDelivery, setShowDelivery] = useState(false);
   const [showLoginScreen, setShowLoginScreen] = useState(false);
   const loginCallbackRef = useRef<(() => void) | null>(null);
 
@@ -72,6 +74,7 @@ export default function App() {
             isDark={isDark}
             onToggleTheme={toggleTheme}
             onAdminPanel={() => setShowAdmin(true)}
+            onDeliveryPanel={() => setShowDelivery(true)}
             user={user}
             isLoggedIn={isLoggedIn}
             onLoginRequired={() => handleLoginRequired()}
@@ -97,6 +100,17 @@ export default function App() {
           >
             <AdminTab onBack={() => setShowAdmin(false)} />
           </motion.div>
+        ) : showDelivery ? (
+          <motion.div
+            key="delivery"
+            initial={{ x: "100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "100%" }}
+            transition={{ type: "spring", damping: 28, stiffness: 300 }}
+            className="fixed inset-0 z-50 bg-background max-w-lg mx-auto overflow-y-auto"
+          >
+            <DeliveryAgentPanel onBack={() => setShowDelivery(false)} />
+          </motion.div>
         ) : (
           <motion.div
             key={activeTab}
@@ -110,7 +124,7 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {!showAdmin && (
+      {!showAdmin && !showDelivery && (
         <BottomNav
           activeTab={activeTab}
           onTabChange={(tab) => {

@@ -3,8 +3,10 @@ import {
   Home,
   MapPin,
   Package,
+  Phone,
   RefreshCw,
   Truck,
+  User,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -94,6 +96,7 @@ function parseAddress(addressStr: string) {
       area: parsed.area || "",
       pincode: parsed.pincode || "",
       type: parsed.type || "Home",
+      phone: parsed.phone || "",
     };
   } catch {
     return {
@@ -103,6 +106,7 @@ function parseAddress(addressStr: string) {
       area: "",
       pincode: "",
       type: "Home",
+      phone: "",
     };
   }
 }
@@ -180,6 +184,36 @@ function OrderCard({ order, index }: { order: Order; index: number }) {
             No item details available
           </p>
         )}
+      </div>
+
+      {/* Customer Info */}
+      <div className="px-4 py-2.5 border-t border-border space-y-1.5">
+        <div className="flex items-center gap-2 text-sm">
+          <User size={13} className="text-orange shrink-0" />
+          <span className="text-foreground font-medium">
+            {order.customerName || "Customer"}
+          </span>
+        </div>
+        {address.phone && (
+          <div className="flex items-center gap-2 text-sm">
+            <Phone size={13} className="text-orange shrink-0" />
+            <span className="text-muted-foreground">{address.phone}</span>
+          </div>
+        )}
+        <div className="flex items-start gap-2 text-sm">
+          <MapPin size={13} className="text-orange shrink-0 mt-0.5" />
+          <span className="text-muted-foreground leading-snug">
+            {[
+              address.flat,
+              address.building,
+              address.landmark,
+              address.area,
+              address.pincode,
+            ]
+              .filter(Boolean)
+              .join(", ")}
+          </span>
+        </div>
       </div>
 
       {/* Status Stepper */}

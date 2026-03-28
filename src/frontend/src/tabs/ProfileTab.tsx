@@ -1,4 +1,5 @@
 import {
+  Bike,
   ChevronRight,
   CreditCard,
   Gift,
@@ -26,6 +27,7 @@ interface ProfileTabProps {
   isDark: boolean;
   onToggleTheme: () => void;
   onAdminPanel: () => void;
+  onDeliveryPanel: () => void;
   user: AuthUser | null;
   isLoggedIn: boolean;
   onLoginRequired: () => void;
@@ -47,6 +49,7 @@ export function ProfileTab({
   isDark,
   onToggleTheme,
   onAdminPanel,
+  onDeliveryPanel,
   user,
   isLoggedIn,
   onLoginRequired,
@@ -246,6 +249,25 @@ export function ProfileTab({
             Founder
           </span>
           <ChevronRight size={14} className="text-orange" />
+        </motion.button>
+
+        {/* Delivery Agent Button */}
+        <motion.button
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.38 }}
+          onClick={onDeliveryPanel}
+          className="w-full flex items-center gap-3 px-4 py-3.5 bg-card rounded-2xl border border-blue-500/30 hover:bg-blue-500/5 transition-colors"
+          data-ocid="profile.delivery.open_modal_button"
+        >
+          <Bike size={18} className="text-blue-500" />
+          <span className="flex-1 text-sm font-bold text-left text-blue-500">
+            🛵 Delivery Agent Login
+          </span>
+          <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-500">
+            Agent
+          </span>
+          <ChevronRight size={14} className="text-blue-500" />
         </motion.button>
 
         {/* Theme Toggle */}
