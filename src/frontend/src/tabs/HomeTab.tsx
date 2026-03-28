@@ -27,7 +27,23 @@ interface HomeTabProps {
 
 export function HomeTab({ isDark, onToggleTheme, onTabChange }: HomeTabProps) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [countdown, setCountdown] = useState(14 * 60 + 59);
+  const getInitialCountdown = () => {
+    const mins = Number.parseInt(
+      localStorage.getItem("flashTimerMins") || "15",
+      10,
+    );
+    return Math.max(1, mins) * 60 - 1;
+  };
+  const [countdown, setCountdown] = useState(getInitialCountdown);
+  const [flashEnabled, setFlashEnabled] = useState(
+    () => localStorage.getItem("flashEnabled") !== "false",
+  );
+  const [flashTitle, setFlashTitle] = useState(
+    () => localStorage.getItem("flashTitle") || "🔥 FLASH DEALS",
+  );
+  const [flashMaxProducts, setFlashMaxProducts] = useState(() =>
+    Number.parseInt(localStorage.getItem("flashMaxProducts") || "10", 10),
+  );
   const [deliveryLocation, setDeliveryLocation] = useState(
     () => localStorage.getItem("deliveryLocation") || DEFAULT_LOCATION,
   );
@@ -38,10 +54,32 @@ export function HomeTab({ isDark, onToggleTheme, onTabChange }: HomeTabProps) {
   const { products, loading } = useProducts();
 
   useEffect(() => {
+    const getMins = () =>
+      Math.max(
+        1,
+        Number.parseInt(localStorage.getItem("flashTimerMins") || "15", 10),
+      );
     const interval = setInterval(() => {
-      setCountdown((prev) => (prev > 0 ? prev - 1 : 14 * 60 + 59));
+      setCountdown((prev) => (prev > 0 ? prev - 1 : getMins() * 60 - 1));
     }, 1000);
     return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const handler = () => {
+      setFlashEnabled(localStorage.getItem("flashEnabled") !== "false");
+      setFlashTitle(localStorage.getItem("flashTitle") || "🔥 FLASH DEALS");
+      setFlashMaxProducts(
+        Number.parseInt(localStorage.getItem("flashMaxProducts") || "10", 10),
+      );
+      const mins = Math.max(
+        1,
+        Number.parseInt(localStorage.getItem("flashTimerMins") || "15", 10),
+      );
+      setCountdown(mins * 60 - 1);
+    };
+    window.addEventListener("flashSettingsUpdated", handler);
+    return () => window.removeEventListener("flashSettingsUpdated", handler);
   }, []);
 
   useEffect(() => {
@@ -74,9 +112,12 @@ export function HomeTab({ isDark, onToggleTheme, onTabChange }: HomeTabProps) {
     return `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
   };
 
-  const flashDeals = products.filter(
-    (p) => p.price < p.originalPrice || products.indexOf(p) < 6,
-  );
+  const flashDeals = products
+    .filter(
+      (p) =>
+        p.price < p.originalPrice || products.indexOf(p) < flashMaxProducts,
+    )
+    .slice(0, flashMaxProducts);
   const trending = products.slice(0, 6);
 
   const filtered = searchQuery
@@ -248,51 +289,53 @@ export function HomeTab({ isDark, onToggleTheme, onTabChange }: HomeTabProps) {
             </div>
 
             {/* Flash Deals */}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <span className="text-base font-black text-flash-red">
-                    🔥 FLASH DEALS
-                  </span>
-                  <div className="flash-gradient text-white text-xs font-bold px-2 py-0.5 rounded-full animate-pulse">
-                    {formatTime(countdown)}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  className="text-xs text-orange font-semibold"
-                  data-ocid="home.secondary_button"
-                >
-                  See all →
-                </button>
-              </div>
-
-              {loading ? (
-                <div className="flex gap-3">
-                  {[1, 2, 3].map((i) => (
-                    <Skeleton
-                      key={i}
-                      className="w-40 h-52 rounded-xl flex-shrink-0"
-                    />
-                  ))}
-                </div>
-              ) : flashDeals.length === 0 ? (
-                <div
-                  className="text-center py-8 text-muted-foreground text-sm"
-                  data-ocid="flash.empty_state"
-                >
-                  No flash deals right now. Check back soon! 🔥
-                </div>
-              ) : (
-                <div className="flex gap-3 overflow-x-auto hide-scrollbar pb-2">
-                  {flashDeals.map((p) => (
-                    <div key={p.id} className="w-40 flex-shrink-0">
-                      <ProductCard product={p} />
+            {flashEnabled && (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-base font-black text-flash-red">
+                      {flashTitle}
+                    </span>
+                    <div className="flash-gradient text-white text-xs font-bold px-2 py-0.5 rounded-full animate-pulse">
+                      {formatTime(countdown)}
                     </div>
-                  ))}
+                  </div>
+                  <button
+                    type="button"
+                    className="text-xs text-orange font-semibold"
+                    data-ocid="home.secondary_button"
+                  >
+                    See all →
+                  </button>
                 </div>
-              )}
-            </div>
+
+                {loading ? (
+                  <div className="flex gap-3">
+                    {[1, 2, 3].map((i) => (
+                      <Skeleton
+                        key={i}
+                        className="w-40 h-52 rounded-xl flex-shrink-0"
+                      />
+                    ))}
+                  </div>
+                ) : flashDeals.length === 0 ? (
+                  <div
+                    className="text-center py-8 text-muted-foreground text-sm"
+                    data-ocid="flash.empty_state"
+                  >
+                    No flash deals right now. Check back soon! 🔥
+                  </div>
+                ) : (
+                  <div className="flex gap-3 overflow-x-auto hide-scrollbar pb-2">
+                    {flashDeals.map((p) => (
+                      <div key={p.id} className="w-40 flex-shrink-0">
+                        <ProductCard product={p} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Trending Near You */}
             <div className="pb-4">

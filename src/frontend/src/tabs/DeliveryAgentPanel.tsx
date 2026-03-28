@@ -94,12 +94,8 @@ export function DeliveryAgentPanel({ onBack }: { onBack: () => void }) {
     try {
       const actor = (await createActorWithConfig()) as any;
       const result: Order[] = await actor.getOrders();
-      const relevant = result.filter((o) => {
-        const key = getStatusKey(o.status);
-        return key === "confirmed" || key === "outForDelivery";
-      });
-      relevant.sort((a, b) => Number(b.createdAt - a.createdAt));
-      setOrders(relevant);
+      result.sort((a, b) => Number(b.createdAt - a.createdAt));
+      setOrders(result);
     } catch (e) {
       console.error(e);
       toast.error("Failed to load orders");

@@ -26,18 +26,59 @@ function mapBackendProduct(p: BackendProduct): Product {
   };
 }
 
+// Module-level cache shared across all hook instances
+let cachedProducts: Product[] | null = null;
+let cacheTimestamp = 0;
+let inflightPromise: Promise<Product[]> | null = null;
+const CACHE_TTL_MS = 60_000; // 60 seconds
+
+async function fetchProductsFromBackend(): Promise<Product[]> {
+  const now = Date.now();
+  // Return cache if still fresh
+  if (cachedProducts && now - cacheTimestamp < CACHE_TTL_MS) {
+    return cachedProducts;
+  }
+  // Deduplicate concurrent calls
+  if (inflightPromise) return inflightPromise;
+
+  inflightPromise = (async () => {
+    const actor = await createActorWithConfig();
+    const raw = await actor.getProducts();
+    const mapped = raw.map(mapBackendProduct);
+    cachedProducts = mapped;
+    cacheTimestamp = Date.now();
+    return mapped;
+  })().finally(() => {
+    inflightPromise = null;
+  });
+
+  return inflightPromise;
+}
+
+export function invalidateProductCache() {
+  cachedProducts = null;
+  cacheTimestamp = 0;
+}
+
 export function useProducts() {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [products, setProducts] = useState<Product[]>(cachedProducts ?? []);
+  const [loading, setLoading] = useState(!cachedProducts);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchProducts = useCallback(async () => {
+  const fetchProducts = useCallback(async (force = false) => {
+    if (force) invalidateProductCache();
+    // If we already have fresh cache, use it immediately without showing loader
+    const now = Date.now();
+    if (!force && cachedProducts && now - cacheTimestamp < CACHE_TTL_MS) {
+      setProducts(cachedProducts);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      const actor = await createActorWithConfig();
-      const raw = await actor.getProducts();
-      setProducts(raw.map(mapBackendProduct));
+      const data = await fetchProductsFromBackend();
+      setProducts(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to fetch products");
     } finally {
@@ -49,5 +90,5 @@ export function useProducts() {
     fetchProducts();
   }, [fetchProducts]);
 
-  return { products, loading, error, refetch: fetchProducts };
+  return { products, loading, error, refetch: () => fetchProducts(true) };
 }

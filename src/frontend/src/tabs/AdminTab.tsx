@@ -33,6 +33,7 @@ import {
   Trash2,
   Truck,
   Upload,
+  Zap,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useState } from "react";
@@ -171,6 +172,7 @@ function parseAddress(raw: string): {
   building?: string;
   landmark?: string;
   area?: string;
+  phone?: string;
 } {
   try {
     return JSON.parse(raw);
@@ -286,6 +288,11 @@ function OrderDetailsPage({
               <p className="font-black text-base leading-tight">
                 {order.customerName || "Customer"}
               </p>
+              {addr.phone && (
+                <p className="text-xs text-blue-500 font-medium mt-0.5">
+                  📞 {addr.phone}
+                </p>
+              )}
               <p className="text-xs text-muted-foreground mt-0.5">
                 Placed on {displayDate}
               </p>
@@ -472,6 +479,21 @@ export function AdminTab({ onBack }: AdminTabProps) {
   );
   const [savingLocation, setSavingLocation] = useState(false);
 
+  // Flash deal settings state
+  const [flashEnabled, setFlashEnabled] = useState(
+    () => localStorage.getItem("flashEnabled") !== "false",
+  );
+  const [flashTitle, setFlashTitle] = useState(
+    () => localStorage.getItem("flashTitle") || "🔥 FLASH DEALS",
+  );
+  const [flashTimerMins, setFlashTimerMins] = useState(
+    () => localStorage.getItem("flashTimerMins") || "15",
+  );
+  const [flashMaxProducts, setFlashMaxProducts] = useState(
+    () => localStorage.getItem("flashMaxProducts") || "10",
+  );
+  const [savingFlash, setSavingFlash] = useState(false);
+
   const fetchOrders = useCallback(async () => {
     setOrdersLoading(true);
     try {
@@ -552,6 +574,17 @@ export function AdminTab({ onBack }: AdminTabProps) {
     window.dispatchEvent(new Event("deliveryLocationUpdated"));
     toast.success("✅ Location updated!");
     setSavingLocation(false);
+  };
+
+  const handleSaveFlashSettings = () => {
+    setSavingFlash(true);
+    localStorage.setItem("flashEnabled", flashEnabled ? "true" : "false");
+    localStorage.setItem("flashTitle", flashTitle.trim() || "🔥 FLASH DEALS");
+    localStorage.setItem("flashTimerMins", flashTimerMins || "15");
+    localStorage.setItem("flashMaxProducts", flashMaxProducts || "10");
+    window.dispatchEvent(new Event("flashSettingsUpdated"));
+    toast.success("⚡ Flash deal settings saved!");
+    setSavingFlash(false);
   };
 
   const handlePinSubmit = () => {
@@ -1063,6 +1096,7 @@ export function AdminTab({ onBack }: AdminTabProps) {
                   building?: string;
                   landmark?: string;
                   area?: string;
+                  phone?: string;
                 } = {};
                 try {
                   parsedAddress = JSON.parse(order.address);
@@ -1161,6 +1195,11 @@ export function AdminTab({ onBack }: AdminTabProps) {
                           <p className="font-black text-sm">
                             {order.customerName || "Customer"}
                           </p>
+                          {parsedAddress.phone && (
+                            <p className="text-xs text-blue-500 font-medium mt-0.5">
+                              📞 {parsedAddress.phone}
+                            </p>
+                          )}
                           <p className="text-xs text-muted-foreground mt-0.5">
                             Total:{" "}
                             <span className="font-bold text-orange-500">
@@ -1381,6 +1420,108 @@ export function AdminTab({ onBack }: AdminTabProps) {
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : null}
               Save Location
+            </Button>
+          </motion.div>
+
+          {/* Flash Deals Settings Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="bg-card rounded-2xl border border-border p-5 space-y-4"
+            data-ocid="admin.settings.flash_deals"
+          >
+            <div className="flex items-center gap-3 mb-1">
+              <div className="w-9 h-9 rounded-xl orange-gradient flex items-center justify-center">
+                <Zap size={16} className="text-white" />
+              </div>
+              <div>
+                <p className="font-black text-sm">Flash Deals</p>
+                <p className="text-xs text-muted-foreground">
+                  Control the flash deals section on the home screen
+                </p>
+              </div>
+            </div>
+
+            {/* Enable/Disable toggle */}
+            <div className="flex items-center justify-between py-2 border-b border-border">
+              <div>
+                <p className="text-sm font-semibold">Enable Flash Deals</p>
+                <p className="text-xs text-muted-foreground">
+                  Show flash deals section on home screen
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFlashEnabled((v) => !v)}
+                className={`relative w-11 h-6 rounded-full transition-colors ${
+                  flashEnabled ? "bg-orange-500" : "bg-muted"
+                }`}
+                data-ocid="admin.settings.flash_toggle"
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                    flashEnabled ? "translate-x-5" : "translate-x-0"
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* Section Title */}
+            <div className="space-y-1">
+              <Label htmlFor="flash-title">Section Title</Label>
+              <Input
+                id="flash-title"
+                placeholder="🔥 FLASH DEALS"
+                value={flashTitle}
+                onChange={(e) => setFlashTitle(e.target.value)}
+                disabled={!flashEnabled}
+                data-ocid="admin.settings.flash_title"
+              />
+            </div>
+
+            {/* Countdown Duration */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="flash-timer">Countdown (minutes)</Label>
+                <Input
+                  id="flash-timer"
+                  type="number"
+                  min="1"
+                  max="1440"
+                  placeholder="15"
+                  value={flashTimerMins}
+                  onChange={(e) => setFlashTimerMins(e.target.value)}
+                  disabled={!flashEnabled}
+                  data-ocid="admin.settings.flash_timer"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="flash-max">Max Products Shown</Label>
+                <Input
+                  id="flash-max"
+                  type="number"
+                  min="1"
+                  max="50"
+                  placeholder="10"
+                  value={flashMaxProducts}
+                  onChange={(e) => setFlashMaxProducts(e.target.value)}
+                  disabled={!flashEnabled}
+                  data-ocid="admin.settings.flash_max"
+                />
+              </div>
+            </div>
+
+            <Button
+              className="w-full orange-gradient text-white font-bold rounded-xl"
+              onClick={handleSaveFlashSettings}
+              disabled={savingFlash}
+              data-ocid="admin.settings.flash_save"
+            >
+              {savingFlash ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              Save Flash Deal Settings
             </Button>
           </motion.div>
         </div>

@@ -58,6 +58,19 @@ function getStatusColor(kind: OrderStatusKind) {
   }
 }
 
+function getStatusGlow(kind: OrderStatusKind) {
+  switch (kind) {
+    case "pendingVerification":
+      return "0 0 12px 3px rgba(245,158,11,0.45)";
+    case "confirmed":
+      return "0 0 12px 3px rgba(59,130,246,0.45)";
+    case "outForDelivery":
+      return "0 0 12px 3px rgba(249,115,22,0.55)";
+    case "delivered":
+      return "0 0 12px 3px rgba(34,197,94,0.45)";
+  }
+}
+
 function timeAgo(nanos: bigint): string {
   const ms = Number(nanos / 1_000_000n);
   const diff = Date.now() - ms;
@@ -131,13 +144,22 @@ function statusToStep(kind: OrderStatusKind): number {
   }
 }
 
-function OrderCard({ order, index }: { order: Order; index: number }) {
+function OrderCard({
+  order,
+  index,
+  justUpdated,
+}: {
+  order: Order;
+  index: number;
+  justUpdated: boolean;
+}) {
   const [showTracking, setShowTracking] = useState(false);
   const statusKind = getStatusKind(order.status);
   const currentStep = statusToStep(statusKind);
   const items = parseItems(order.itemsJson);
   const address = parseAddress(order.address);
   const isUPI = "upi" in order.paymentMethod;
+  const progressPct = (currentStep / 3) * 100;
 
   return (
     <motion.div
@@ -158,11 +180,25 @@ function OrderCard({ order, index }: { order: Order; index: number }) {
             {order.totalAmount} · {timeAgo(order.createdAt)}
           </div>
         </div>
-        <span
-          className={`text-xs font-bold px-2.5 py-1 rounded-full ${getStatusColor(statusKind)}`}
+        <motion.span
+          key={statusKind}
+          className={`text-xs font-bold px-2.5 py-1 rounded-full inline-block ${getStatusColor(statusKind)}`}
+          animate={
+            justUpdated
+              ? {
+                  scale: [1, 1.18, 1],
+                  boxShadow: [
+                    "0 0 0px 0px transparent",
+                    getStatusGlow(statusKind),
+                    "0 0 0px 0px transparent",
+                  ],
+                }
+              : { scale: 1 }
+          }
+          transition={{ duration: 0.5, ease: "easeInOut" }}
         >
           {getStatusLabel(statusKind)}
-        </span>
+        </motion.span>
       </div>
 
       {/* Items */}
@@ -218,11 +254,37 @@ function OrderCard({ order, index }: { order: Order; index: number }) {
 
       {/* Status Stepper */}
       <div className="px-4 py-3 border-t border-border">
+        {/* Status Updated micro-banner */}
+        <AnimatePresence>
+          {justUpdated && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+              className="text-xs font-semibold text-orange bg-orange/10 rounded-full px-3 py-1 text-center mb-2"
+            >
+              🔄 Order status updated!
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <div className="flex items-center justify-between relative">
+          {/* Base gray line */}
           <div
             className="absolute top-3 left-0 right-0 h-0.5 bg-border z-0"
             style={{ margin: "0 16px" }}
           />
+          {/* Animated orange progress fill */}
+          <motion.div
+            className="absolute top-3 h-0.5 bg-orange z-0 origin-left"
+            style={{ left: 16, right: 16 }}
+            animate={{
+              width: `calc(${progressPct}% - 32px * ${progressPct / 100})`,
+            }}
+            transition={{ duration: 0.6, ease: "easeInOut" }}
+          />
+
           {STEPPER_STEPS.map((step) => {
             const Icon = step.icon;
             const isDone = step.id < currentStep;
@@ -232,25 +294,42 @@ function OrderCard({ order, index }: { order: Order; index: number }) {
                 key={step.id}
                 className="flex flex-col items-center gap-1 z-10 relative"
               >
-                <div
-                  className={`w-7 h-7 rounded-full flex items-center justify-center ${
-                    isDone
-                      ? "bg-green-500"
-                      : isActive
-                        ? "bg-orange"
-                        : "bg-muted"
-                  }`}
-                >
-                  {isDone ? (
-                    <CheckCircle size={14} className="text-white" />
-                  ) : (
-                    <Icon
-                      size={13}
-                      className={
-                        isActive ? "text-white" : "text-muted-foreground"
-                      }
+                <div className="relative w-7 h-7 flex items-center justify-center">
+                  {/* Pulse ring for active step */}
+                  {isActive && (
+                    <motion.div
+                      className="absolute inset-0 rounded-full bg-orange/30"
+                      animate={{
+                        scale: [1, 1.8, 1],
+                        opacity: [0.6, 0, 0.6],
+                      }}
+                      transition={{
+                        repeat: Number.POSITIVE_INFINITY,
+                        duration: 1.6,
+                        ease: "easeInOut",
+                      }}
                     />
                   )}
+                  <div
+                    className={`w-7 h-7 rounded-full flex items-center justify-center ${
+                      isDone
+                        ? "bg-green-500"
+                        : isActive
+                          ? "bg-orange"
+                          : "bg-muted"
+                    }`}
+                  >
+                    {isDone ? (
+                      <CheckCircle size={14} className="text-white" />
+                    ) : (
+                      <Icon
+                        size={13}
+                        className={
+                          isActive ? "text-white" : "text-muted-foreground"
+                        }
+                      />
+                    )}
+                  </div>
                 </div>
                 <span
                   className={`text-xs text-center leading-tight ${
@@ -333,7 +412,9 @@ export function OrdersTab() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [justUpdatedIds, setJustUpdatedIds] = useState<Set<string>>(new Set());
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const statusMapRef = useRef<Map<string, OrderStatusKind>>(new Map());
 
   const fetchOrders = useCallback(
     async (showSpinner = false) => {
@@ -346,6 +427,36 @@ export function OrdersTab() {
           .filter((o) => orderIdSet.has(String(Number(o.id))))
           .sort((a, b) => Number(b.createdAt - a.createdAt));
         setOrders(filtered);
+
+        // Detect status changes
+        const changedIds: string[] = [];
+        for (const order of filtered) {
+          const idStr = String(Number(order.id));
+          const newStatus = getStatusKind(order.status);
+          const prevStatus = statusMapRef.current.get(idStr);
+          if (prevStatus !== undefined && prevStatus !== newStatus) {
+            changedIds.push(idStr);
+          }
+          statusMapRef.current.set(idStr, newStatus);
+        }
+
+        if (changedIds.length > 0) {
+          setJustUpdatedIds((prev) => {
+            const next = new Set(prev);
+            for (const id of changedIds) next.add(id);
+            return next;
+          });
+          for (const id of changedIds) {
+            setTimeout(() => {
+              setJustUpdatedIds((prev) => {
+                const next = new Set(prev);
+                next.delete(id);
+                return next;
+              });
+            }, 3000);
+          }
+        }
+
         useOrderNotificationStore
           .getState()
           .setCurrentOrderCount(filtered.length);
@@ -366,7 +477,7 @@ export function OrdersTab() {
       return;
     }
     fetchOrders();
-    intervalRef.current = setInterval(() => fetchOrders(), 10000);
+    intervalRef.current = setInterval(() => fetchOrders(), 2000);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
@@ -491,7 +602,12 @@ export function OrdersTab() {
         {isLoggedIn && !loading && orders.length > 0 && (
           <div className="space-y-4" data-ocid="orders.list">
             {orders.map((order, i) => (
-              <OrderCard key={String(order.id)} order={order} index={i} />
+              <OrderCard
+                key={String(order.id)}
+                order={order}
+                index={i}
+                justUpdated={justUpdatedIds.has(String(Number(order.id)))}
+              />
             ))}
           </div>
         )}
