@@ -102,6 +102,12 @@ export interface Order {
   'customerName' : string,
   'createdAt' : bigint,
 }
+export interface FlashNotifySubscriber {
+  'principal' : Principal,
+  'name' : string,
+  'phone' : string,
+  'subscribedAt' : bigint,
+}
 export interface _SERVICE {
   '_caffeineStorageBlobIsLive' : ActorMethod<[Uint8Array], boolean>,
   '_caffeineStorageBlobsToDelete' : ActorMethod<[], Array<Uint8Array>>,
@@ -143,6 +149,9 @@ export interface _SERVICE {
   'getOrders' : ActorMethod<[], Array<Order>>,
   'confirmPayment' : ActorMethod<[bigint], boolean>,
   'updateOrderStatus' : ActorMethod<[bigint, OrderStatus], boolean>,
+  'subscribeFlashNotify' : ActorMethod<[string, string], boolean>,
+  'getFlashNotifySubscribers' : ActorMethod<[], Array<FlashNotifySubscriber>>,
+  'clearFlashNotifySubscribers' : ActorMethod<[], undefined>,
 }
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];

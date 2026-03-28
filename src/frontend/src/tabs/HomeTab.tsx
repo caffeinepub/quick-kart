@@ -10,9 +10,12 @@ import {
 } from "lucide-react";
 import { motion } from "motion/react";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { ProductCard } from "../components/ProductCard";
+import { createActorWithConfig } from "../config";
 import { type Category, categoryConfig } from "../data/products";
 import { useProducts } from "../hooks/useProducts";
+import { useAuthStore } from "../store/authStore";
 import { useCartStore } from "../store/cartStore";
 
 const DEFAULT_LOCATION = "Delivering to Areas Near Atraulia";
@@ -50,6 +53,11 @@ export function HomeTab({ isDark, onToggleTheme, onTabChange }: HomeTabProps) {
   const [bannerImageUrl, setBannerImageUrl] = useState(
     () => localStorage.getItem("bannerImageUrl") || DEFAULT_BANNER,
   );
+  const { user, isLoggedIn } = useAuthStore();
+  const [notifySubscribed, setNotifySubscribed] = useState(
+    () => localStorage.getItem("flashNotifySubscribed") === "true",
+  );
+  const [notifyLoading, setNotifyLoading] = useState(false);
   const getTotalItems = useCartStore((s) => s.getTotalItems);
   const { products, loading } = useProducts();
 
@@ -129,6 +137,22 @@ export function HomeTab({ isDark, onToggleTheme, onTabChange }: HomeTabProps) {
   const cartCount = getTotalItems();
 
   const categories: Category[] = ["food", "beverages", "grocery", "services"];
+
+  const handleNotifyMe = async () => {
+    if (!user) return;
+    setNotifyLoading(true);
+    try {
+      const actor = (await createActorWithConfig()) as any;
+      await actor.subscribeFlashNotify(user.name, user.phone);
+      setNotifySubscribed(true);
+      localStorage.setItem("flashNotifySubscribed", "true");
+      toast.success("You'll be notified when Flash Deals go live! 🔔");
+    } catch {
+      toast.error("Failed to subscribe. Try again.");
+    } finally {
+      setNotifyLoading(false);
+    }
+  };
 
   return (
     <div className="flex flex-col min-h-screen pb-20">
@@ -289,7 +313,38 @@ export function HomeTab({ isDark, onToggleTheme, onTabChange }: HomeTabProps) {
             </div>
 
             {/* Flash Deals */}
-            {flashEnabled && (
+            {!flashEnabled ? (
+              <div
+                className="rounded-2xl border border-orange-500/30 bg-orange-500/5 p-5 text-center space-y-2"
+                data-ocid="flash.empty_state"
+              >
+                <div className="text-2xl font-black text-orange-500">
+                  ⚡ Flash Deals Coming Soon
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Stay tuned for exclusive limited-time offers!
+                </p>
+                {!isLoggedIn ? (
+                  <p className="text-xs text-muted-foreground/70 pt-1">
+                    Login to get notified when Flash Deals go live
+                  </p>
+                ) : notifySubscribed ? (
+                  <div className="inline-flex items-center gap-1.5 bg-green-500/20 text-green-500 text-sm font-semibold px-3 py-1.5 rounded-full mt-1">
+                    ✅ You'll be notified!
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleNotifyMe}
+                    disabled={notifyLoading}
+                    className="mt-1 inline-flex items-center gap-1.5 orange-gradient text-white text-sm font-bold px-4 py-2 rounded-full disabled:opacity-60"
+                    data-ocid="flash.notify_button"
+                  >
+                    {notifyLoading ? "Subscribing..." : "🔔 Notify Me"}
+                  </button>
+                )}
+              </div>
+            ) : (
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">

@@ -86,6 +86,13 @@ actor {
     customerName : Text;
   };
 
+  public type FlashNotifySubscriber = {
+    principal : Principal;
+    name : Text;
+    phone : Text;
+    subscribedAt : Int;
+  };
+
   var nextId = 1;
   let products = Map.empty<Nat, Product>();
 
@@ -93,6 +100,9 @@ actor {
   let orders = Map.empty<Nat, Order>();
 
   let userProfiles = Map.empty<Principal, UserProfile>();
+
+  // Flash notify subscribers (keyed by principal to deduplicate)
+  let flashNotifySubscribers = Map.empty<Principal, FlashNotifySubscriber>();
 
   // Access control setup
   let accessControlState = AccessControl.initState();
@@ -255,6 +265,28 @@ actor {
         orders.add(orderId, updated);
         true;
       };
+    };
+  };
+
+  // Flash notify subscriptions
+  public shared ({ caller }) func subscribeFlashNotify(name : Text, phone : Text) : async Bool {
+    let subscriber : FlashNotifySubscriber = {
+      principal = caller;
+      name;
+      phone;
+      subscribedAt = Time.now();
+    };
+    flashNotifySubscribers.add(caller, subscriber);
+    true;
+  };
+
+  public query func getFlashNotifySubscribers() : async [FlashNotifySubscriber] {
+    flashNotifySubscribers.values().toArray();
+  };
+
+  public shared func clearFlashNotifySubscribers() : async () {
+    for (key in flashNotifySubscribers.keys().toArray().vals()) {
+      flashNotifySubscribers.remove(key);
     };
   };
 };

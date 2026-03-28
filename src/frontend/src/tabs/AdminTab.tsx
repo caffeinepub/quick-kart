@@ -20,6 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import {
   ArrowLeft,
+  Bell,
   CheckCircle,
   Copy,
   Edit2,
@@ -493,6 +494,12 @@ export function AdminTab({ onBack }: AdminTabProps) {
     () => localStorage.getItem("flashMaxProducts") || "10",
   );
   const [savingFlash, setSavingFlash] = useState(false);
+  const [flashSubscribers, setFlashSubscribers] = useState<
+    Array<{ name: string; phone: string }>
+  >([]);
+  const [loadingSubscribers, setLoadingSubscribers] = useState(false);
+  const [notifyingUsers, setNotifyingUsers] = useState(false);
+  const [showNotifyDialog, setShowNotifyDialog] = useState(false);
 
   const fetchOrders = useCallback(async () => {
     setOrdersLoading(true);
@@ -515,6 +522,28 @@ export function AdminTab({ onBack }: AdminTabProps) {
       fetchOrders();
     }
   }, [verified, activeSection, fetchOrders]);
+
+  const fetchFlashSubscribers = useCallback(async () => {
+    setLoadingSubscribers(true);
+    try {
+      const actor = (await createActorWithConfig()) as any;
+      const subs = await actor.getFlashNotifySubscribers();
+      setFlashSubscribers(
+        subs.map((s: any) => ({ name: s.name, phone: s.phone })),
+      );
+    } catch {
+      // silently fail
+    } finally {
+      setLoadingSubscribers(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (verified && activeSection === "settings") {
+      fetchFlashSubscribers();
+    }
+  }, [verified, activeSection, fetchFlashSubscribers]);
+  // eslint-disable-next-line
 
   const handleUpdateStatus = async (
     orderId: bigint,
@@ -1523,9 +1552,104 @@ export function AdminTab({ onBack }: AdminTabProps) {
               ) : null}
               Save Flash Deal Settings
             </Button>
+
+            {/* Flash Notify Subscribers */}
+            <div className="pt-3 border-t border-border space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold">
+                    Waiting for Notification
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {loadingSubscribers
+                      ? "Loading..."
+                      : `${flashSubscribers.length} user${flashSubscribers.length !== 1 ? "s" : ""} subscribed`}
+                  </p>
+                </div>
+                {flashSubscribers.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-orange-500 border-orange-500"
+                    onClick={() => setShowNotifyDialog(true)}
+                    data-ocid="admin.settings.notify_users_button"
+                  >
+                    <Bell size={14} className="mr-1" /> Notify Users
+                  </Button>
+                )}
+              </div>
+            </div>
           </motion.div>
         </div>
       )}
+
+      {/* Flash Notify Dialog */}
+      <Dialog open={showNotifyDialog} onOpenChange={setShowNotifyDialog}>
+        <DialogContent
+          className="max-w-sm mx-auto rounded-2xl"
+          data-ocid="admin.notify.dialog"
+        >
+          <DialogHeader>
+            <DialogTitle>Notify Subscribers</DialogTitle>
+            <DialogDescription>
+              These users will be informed that Flash Deals are now live.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-60 overflow-y-auto space-y-2 py-2">
+            {flashSubscribers.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No subscribers yet.
+              </p>
+            ) : (
+              flashSubscribers.map((sub, i) => (
+                <div
+                  key={`${sub.phone}-${i}`}
+                  className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2"
+                >
+                  <span className="text-sm font-medium">{sub.name}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {sub.phone}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowNotifyDialog(false)}
+              data-ocid="admin.notify.cancel_button"
+            >
+              Cancel
+            </Button>
+            <Button
+              className="orange-gradient text-white font-bold"
+              disabled={notifyingUsers || flashSubscribers.length === 0}
+              onClick={async () => {
+                setNotifyingUsers(true);
+                try {
+                  const actor = (await createActorWithConfig()) as any;
+                  await actor.clearFlashNotifySubscribers();
+                  window.dispatchEvent(new CustomEvent("flashDealsNotified"));
+                  toast.success(`Notified ${flashSubscribers.length} users!`);
+                  setFlashSubscribers([]);
+                  setShowNotifyDialog(false);
+                } catch {
+                  toast.error("Failed to notify users.");
+                } finally {
+                  setNotifyingUsers(false);
+                }
+              }}
+              data-ocid="admin.notify.confirm_button"
+            >
+              {notifyingUsers ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              Send Notification
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Add / Edit Product Dialog */}
       <Dialog open={showForm} onOpenChange={setShowForm}>

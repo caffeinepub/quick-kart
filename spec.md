@@ -1,25 +1,32 @@
-# Quick Kart
+# Quick Kart — Flash Deals Notify Me & Admin Notify
 
 ## Current State
-App has an Admin Panel (PIN: 2477) with product management, order management, and settings. Orders include customerName, address (JSON with flat/building/landmark/area/phone), itemsJson, totalAmount, paymentMethod, status.
+- Flash deals section on HomeTab is conditionally rendered with `{flashEnabled && (...)}` — hidden when disabled, nothing shown
+- Admin panel has flash deals toggle, title, timer, max products settings saved to localStorage
+- No "coming soon" state, no Notify Me feature, no subscriber storage
 
 ## Requested Changes (Diff)
 
 ### Add
-- DeliveryAgentPanel component: separate screen with PIN login (PIN: 7890)
-- Shows orders filtered to `confirmed` + `outForDelivery` statuses (delivery-relevant)
-- Each order card shows: customer name, phone (from address JSON), full address, items list, total, order time
-- "Mark Delivered" button on outForDelivery orders
-- Entry point via Profile tab "Delivery Agent Login" button
+- Backend: `FlashNotifySubscriber` type `{ name: Text; phone: Text; principal: Principal }`
+- Backend: `subscribeFlashNotify(name, phone)` — saves caller to notify list (deduplicates by principal)
+- Backend: `getFlashNotifySubscribers()` — returns all subscribers (admin only)
+- Backend: `clearFlashNotifySubscribers()` — clears all subscribers after admin notifies
+- HomeTab: When `flashEnabled = false`, show "Flash Deals Coming Soon" card with countdown message and a "Notify Me" button
+- "Notify Me" button: visible only for logged-in users; calls backend to subscribe; shows confirmation toast; disabled after subscription (persist via localStorage flag)
+- Non-logged-in users see "Login to get notified" prompt instead
+- AdminTab: In Flash Deals settings, show subscriber count badge
+- AdminTab: "Notify Users" button — opens a dialog listing all subscribers (name + phone) so admin can contact them, then clears the list after confirming
 
 ### Modify
-- App.tsx: add `showDelivery` state, render DeliveryAgentPanel overlay (same pattern as Admin)
-- ProfileTab: add a "🛵 Delivery Agent" button to open the panel
+- HomeTab flash section: instead of completely hiding when disabled, show "coming soon" card
+- AdminTab flash settings: add subscriber info + notify button below Save button
 
 ### Remove
 - Nothing removed
 
 ## Implementation Plan
-1. Create `src/frontend/src/tabs/DeliveryAgentPanel.tsx` with PIN gate (PIN: 7890), order list filtered to delivery-relevant statuses, full order detail cards
-2. Update App.tsx to handle `showDelivery` state and render panel
-3. Update ProfileTab to add delivery agent login button
+1. Update backend main.mo: add subscriber type + 3 new functions
+2. Update backend.did.d.ts: add new types + methods
+3. Update HomeTab: add coming-soon section with Notify Me button
+4. Update AdminTab: add subscriber count + Notify Users button with dialog
