@@ -130,4 +130,5 @@ export interface backendInterface {
     placeOrder(newOrder: NewOrder): Promise<bigint>;
     getOrders(): Promise<Array<Order>>;
     confirmPayment(orderId: bigint): Promise<boolean>;
+    updateOrderStatus(orderId: bigint, status: OrderStatus): Promise<boolean>;
 }

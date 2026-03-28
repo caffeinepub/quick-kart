@@ -1,7 +1,9 @@
 import { Toaster } from "@/components/ui/sonner";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BottomNav } from "./components/BottomNav";
+import { LoginScreen } from "./screens/LoginScreen";
+import { useAuthStore } from "./store/authStore";
 import { AdminTab } from "./tabs/AdminTab";
 import { CartTab } from "./tabs/CartTab";
 import { CategoriesTab } from "./tabs/CategoriesTab";
@@ -15,6 +17,10 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>("home");
   const [isDark, setIsDark] = useState(true);
   const [showAdmin, setShowAdmin] = useState(false);
+  const [showLoginScreen, setShowLoginScreen] = useState(false);
+  const loginCallbackRef = useRef<(() => void) | null>(null);
+
+  const { isLoggedIn, user, logout } = useAuthStore();
 
   useEffect(() => {
     const stored = localStorage.getItem("quickkart-theme");
@@ -32,6 +38,17 @@ export default function App() {
     });
   };
 
+  const handleLoginRequired = (callback?: () => void) => {
+    loginCallbackRef.current = callback ?? null;
+    setShowLoginScreen(true);
+  };
+
+  const handleLoginSuccess = () => {
+    setShowLoginScreen(false);
+    loginCallbackRef.current?.();
+    loginCallbackRef.current = null;
+  };
+
   const renderTab = () => {
     switch (activeTab) {
       case "home":
@@ -47,13 +64,17 @@ export default function App() {
       case "orders":
         return <OrdersTab />;
       case "cart":
-        return <CartTab />;
+        return <CartTab onLoginRequired={() => handleLoginRequired()} />;
       case "profile":
         return (
           <ProfileTab
             isDark={isDark}
             onToggleTheme={toggleTheme}
             onAdminPanel={() => setShowAdmin(true)}
+            user={user}
+            isLoggedIn={isLoggedIn}
+            onLoginRequired={() => handleLoginRequired()}
+            onLogout={logout}
           />
         );
       default:
@@ -91,6 +112,17 @@ export default function App() {
       {!showAdmin && (
         <BottomNav activeTab={activeTab} onTabChange={setActiveTab} />
       )}
+
+      <AnimatePresence>
+        {showLoginScreen && (
+          <LoginScreen
+            onSuccess={handleLoginSuccess}
+            allowClose={true}
+            onClose={() => setShowLoginScreen(false)}
+          />
+        )}
+      </AnimatePresence>
+
       <Toaster richColors position="bottom-center" />
     </div>
   );

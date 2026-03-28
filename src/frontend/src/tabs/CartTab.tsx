@@ -13,11 +13,12 @@ import {
   Zap,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { DeliveryAddressCard } from "../components/DeliveryAddressCard";
 import { QRCodeCard } from "../components/QRCodeCard";
 import { createActorWithConfig } from "../config";
+import { useAuthStore } from "../store/authStore";
 import { useCartStore } from "../store/cartStore";
 
 const COUPONS: Record<string, number> = {
@@ -44,8 +45,9 @@ interface AddressFormData {
 
 type CheckoutStep = "cart" | "payment" | "upi" | "success-cod" | "success-upi";
 
-export function CartTab() {
+export function CartTab({ onLoginRequired }: { onLoginRequired: () => void }) {
   const { items, updateQuantity, removeFromCart, clearCart } = useCartStore();
+  const { isLoggedIn, user, addOrderId } = useAuthStore();
   const [couponInput, setCouponInput] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState("");
   const [selectedDistanceIdx, setSelectedDistanceIdx] = useState(0);
@@ -63,6 +65,13 @@ export function CartTab() {
   const [step, setStep] = useState<CheckoutStep>("cart");
   const [placingOrder, setPlacingOrder] = useState(false);
   const [orderId, setOrderId] = useState<number | null>(null);
+
+  // Pre-fill address from auth store
+  useEffect(() => {
+    if (user?.address) {
+      setAddress(user.address);
+    }
+  }, [user?.address]);
 
   const subtotal = items.reduce((s, i) => s + i.product.price * i.quantity, 0);
   const deliveryFee = DISTANCE_TIERS[selectedDistanceIdx].price;
@@ -96,6 +105,10 @@ export function CartTab() {
   };
 
   const handleProceedToPay = () => {
+    if (!isLoggedIn) {
+      onLoginRequired();
+      return;
+    }
     if (!savedAddress) {
       toast.error("Please save a delivery address first");
       return;
@@ -107,15 +120,17 @@ export function CartTab() {
     if (!savedAddress) return;
     setPlacingOrder(true);
     try {
-      const actor = (await createActorWithConfig()) as any;
-      const id = await actor.placeOrder({
+      const backend = await createActorWithConfig();
+      const id = await backend.placeOrder({
         itemsJson: JSON.stringify(items),
         totalAmount: total,
         paymentMethod: { __kind__: "cod" },
         address: JSON.stringify(savedAddress),
-        customerName: "Guest",
+        customerName: user?.name ?? "Guest",
       });
-      setOrderId(Number(id));
+      const numId = Number(id);
+      setOrderId(numId);
+      addOrderId(numId);
       clearCart();
       setStep("success-cod");
     } catch (e) {
@@ -129,15 +144,17 @@ export function CartTab() {
     if (!savedAddress) return;
     setPlacingOrder(true);
     try {
-      const actor = (await createActorWithConfig()) as any;
-      const id = await actor.placeOrder({
+      const backend = await createActorWithConfig();
+      const id = await backend.placeOrder({
         itemsJson: JSON.stringify(items),
         totalAmount: total,
         paymentMethod: { __kind__: "upi" },
         address: JSON.stringify(savedAddress),
-        customerName: "Guest",
+        customerName: user?.name ?? "Guest",
       });
-      setOrderId(Number(id));
+      const numId = Number(id);
+      setOrderId(numId);
+      addOrderId(numId);
       clearCart();
       setStep("success-upi");
     } catch (e) {
@@ -363,13 +380,11 @@ export function CartTab() {
           </p>
         </header>
         <div className="px-4 pt-5 space-y-4">
-          {/* Amount */}
           <div className="text-center py-4">
             <p className="text-sm text-muted-foreground mb-1">Amount to pay</p>
             <p className="text-4xl font-black text-orange">₹{total}</p>
           </div>
 
-          {/* UPI ID */}
           <div className="bg-card border border-border rounded-2xl p-4">
             <p className="text-xs text-muted-foreground mb-2 font-semibold uppercase tracking-wider">
               UPI ID
@@ -390,14 +405,12 @@ export function CartTab() {
             </div>
           </div>
 
-          {/* QR Code */}
           <QRCodeCard
             data={upiLink}
             title="Scan to Pay"
             subtitle="Any UPI app"
           />
 
-          {/* Instructions */}
           <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl p-4">
             <p className="text-xs font-bold text-blue-500 mb-2">
               📋 How to pay
@@ -410,7 +423,6 @@ export function CartTab() {
             </ol>
           </div>
 
-          {/* I Have Paid */}
           <motion.button
             whileTap={{ scale: 0.98 }}
             type="button"
@@ -605,7 +617,7 @@ export function CartTab() {
             ))}
           </div>
           <p className="text-xs text-muted-foreground mt-2">
-            🛵 Faster delivery for longer distances may take up to 30 min
+            🛯 Faster delivery for longer distances may take up to 30 min
           </p>
         </div>
 
@@ -753,6 +765,26 @@ export function CartTab() {
           )}
         </div>
 
+        {/* Login prompt if not logged in */}
+        {!isLoggedIn && (
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-orange/5 border border-orange/30 rounded-xl p-4 flex items-center gap-3"
+            data-ocid="cart.login.card"
+          >
+            <span className="text-2xl">🔐</span>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-foreground">
+                Login required to place order
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Sign in for faster checkout and order tracking
+              </p>
+            </div>
+          </motion.div>
+        )}
+
         {/* Proceed to Pay */}
         <motion.button
           whileTap={{ scale: 0.98 }}
@@ -760,8 +792,17 @@ export function CartTab() {
           className="w-full py-4 orange-gradient rounded-2xl text-white font-black text-base shadow-orange flex items-center justify-center gap-2 mb-6"
           data-ocid="cart.submit_button"
         >
-          <span>Proceed to Pay ₹{total}</span>
-          <ChevronRight size={18} strokeWidth={2.5} />
+          {!isLoggedIn ? (
+            <>
+              <span>🔐 Login to Proceed</span>
+              <ChevronRight size={18} strokeWidth={2.5} />
+            </>
+          ) : (
+            <>
+              <span>Proceed to Pay ₹{total}</span>
+              <ChevronRight size={18} strokeWidth={2.5} />
+            </>
+          )}
         </motion.button>
       </div>
     </div>

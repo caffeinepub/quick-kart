@@ -6,8 +6,11 @@ import {
   Heart,
   HelpCircle,
   Info,
+  LogIn,
+  LogOut,
   MapPin,
   Moon,
+  Package,
   Settings,
   ShoppingBag,
   Star,
@@ -17,15 +20,20 @@ import {
 import { motion } from "motion/react";
 import { useState } from "react";
 import { QRCodeCard } from "../components/QRCodeCard";
+import type { AuthUser } from "../store/authStore";
 
 interface ProfileTabProps {
   isDark: boolean;
   onToggleTheme: () => void;
   onAdminPanel: () => void;
+  user: AuthUser | null;
+  isLoggedIn: boolean;
+  onLoginRequired: () => void;
+  onLogout: () => void;
 }
 
 const menuItems = [
-  { icon: ShoppingBag, label: "My Orders", badge: "3" },
+  { icon: ShoppingBag, label: "My Orders", badge: null },
   { icon: Heart, label: "Wishlist", badge: null },
   { icon: MapPin, label: "Saved Addresses", badge: null },
   { icon: CreditCard, label: "Payment Methods", badge: null },
@@ -39,6 +47,10 @@ export function ProfileTab({
   isDark,
   onToggleTheme,
   onAdminPanel,
+  user,
+  isLoggedIn,
+  onLoginRequired,
+  onLogout,
 }: ProfileTabProps) {
   const [lang, setLang] = useState<"en" | "hi">("en");
   const [showQR, setShowQR] = useState(false);
@@ -53,29 +65,129 @@ export function ProfileTab({
       </header>
 
       <div className="px-4 pt-5 space-y-4">
-        {/* Avatar */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-4 bg-card rounded-2xl border border-border p-4"
-          data-ocid="profile.card"
-        >
-          <div className="w-16 h-16 rounded-full orange-gradient flex items-center justify-center">
-            <User size={30} className="text-white" />
-          </div>
-          <div>
-            <div className="font-bold text-lg text-foreground">Guest User</div>
-            <div className="text-sm text-muted-foreground">
-              guest@quickkart.app
-            </div>
-            <div className="flex items-center gap-1 mt-1">
-              <Star size={12} className="fill-amber text-amber" />
-              <span className="text-xs font-semibold text-amber">
-                120 Loyalty Points
+        {/* Auth Card */}
+        {isLoggedIn && user ? (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center gap-4 bg-card rounded-2xl border border-border p-4"
+            data-ocid="profile.card"
+          >
+            <div className="w-16 h-16 rounded-full orange-gradient flex items-center justify-center">
+              <span className="text-2xl font-black text-white">
+                {user.name.charAt(0).toUpperCase()}
               </span>
             </div>
-          </div>
-        </motion.div>
+            <div className="flex-1 min-w-0">
+              <div className="font-bold text-lg text-foreground truncate">
+                {user.name}
+              </div>
+              <div className="text-sm text-muted-foreground">{user.phone}</div>
+              <div className="flex items-center gap-1 mt-1">
+                <Star size={12} className="fill-amber text-amber" />
+                <span className="text-xs font-semibold text-amber">
+                  Quick Kart Member
+                </span>
+              </div>
+            </div>
+          </motion.div>
+        ) : (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-card rounded-2xl border border-border p-5 text-center"
+            data-ocid="profile.card"
+          >
+            <div className="w-16 h-16 rounded-full bg-muted mx-auto flex items-center justify-center mb-3">
+              <User size={30} className="text-muted-foreground" />
+            </div>
+            <p className="font-bold text-base text-foreground">
+              Sign in to Quick Kart
+            </p>
+            <p className="text-sm text-muted-foreground mt-1 mb-4">
+              Track orders, save addresses, and more
+            </p>
+            <button
+              type="button"
+              onClick={onLoginRequired}
+              className="w-full py-3 orange-gradient text-white font-black rounded-xl shadow-orange flex items-center justify-center gap-2"
+              data-ocid="profile.login.primary_button"
+            >
+              <LogIn size={16} /> Login / Sign Up
+            </button>
+          </motion.div>
+        )}
+
+        {/* Saved Address (logged in) */}
+        {isLoggedIn && user?.address && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-card rounded-2xl border border-border p-4"
+            data-ocid="profile.address.card"
+          >
+            <div className="flex items-center gap-2 mb-2">
+              <MapPin size={14} className="text-orange" />
+              <span className="text-sm font-bold">Saved Address</span>
+              <span className="text-xs px-2 py-0.5 rounded-full bg-orange/10 text-orange font-semibold">
+                {user.address.type}
+              </span>
+            </div>
+            <p className="text-sm text-foreground font-semibold">
+              {user.address.flat}, {user.address.building}
+            </p>
+            {user.address.landmark && (
+              <p className="text-xs text-amber font-semibold mt-0.5">
+                🚴 Near {user.address.landmark}
+              </p>
+            )}
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {user.address.area} - {user.address.pincode}
+            </p>
+          </motion.div>
+        )}
+
+        {/* Order History (logged in) */}
+        {isLoggedIn && user && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-card rounded-2xl border border-border overflow-hidden"
+            data-ocid="profile.orders.panel"
+          >
+            <div className="px-4 py-3 border-b border-border flex items-center gap-2">
+              <Package size={14} className="text-orange" />
+              <span className="text-sm font-bold">Order History</span>
+            </div>
+            {user.orderIds.length === 0 ? (
+              <div
+                className="px-4 py-5 text-center"
+                data-ocid="profile.orders.empty_state"
+              >
+                <p className="text-sm text-muted-foreground">
+                  No orders yet. Start shopping!
+                </p>
+              </div>
+            ) : (
+              <div className="divide-y divide-border">
+                {user.orderIds.map((id, i) => (
+                  <div
+                    key={id}
+                    className="px-4 py-3 flex items-center justify-between"
+                    data-ocid={`profile.orders.item.${i + 1}`}
+                  >
+                    <div>
+                      <span className="text-sm font-semibold">Order #{id}</span>
+                    </div>
+                    <span className="text-xs font-bold text-green-500">
+                      ✓ Placed
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </motion.div>
+        )}
 
         {/* Menu Items */}
         <div className="bg-card rounded-2xl border border-border overflow-hidden">
@@ -87,6 +199,7 @@ export function ProfileTab({
                 initial={{ opacity: 0, x: -8 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: i * 0.04 }}
+                onClick={!isLoggedIn ? onLoginRequired : undefined}
                 className="w-full flex items-center gap-3 px-4 py-3.5 border-b border-border last:border-0 hover:bg-muted/50 transition-colors"
                 data-ocid="profile.menu.button"
               >
@@ -216,8 +329,8 @@ export function ProfileTab({
               animate={{ opacity: 1, height: "auto" }}
             >
               <QRCodeCard
-                data="QUICKKART|USER|GuestUser|LOYALTY:120"
-                title="Guest User"
+                data={`QUICKKART|USER|${user?.name ?? "Guest"}|LOYALTY:0`}
+                title={user?.name ?? "Guest User"}
                 subtitle="Quick Kart Member"
               />
             </motion.div>
@@ -229,10 +342,24 @@ export function ProfileTab({
           )}
         </div>
 
+        {/* Logout */}
+        {isLoggedIn && (
+          <motion.button
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            onClick={onLogout}
+            className="w-full flex items-center justify-center gap-2 px-4 py-3.5 bg-destructive/10 border border-destructive/30 text-destructive rounded-2xl hover:bg-destructive/20 transition-colors font-bold text-sm"
+            data-ocid="profile.logout.button"
+          >
+            <LogOut size={16} />
+            Logout
+          </motion.button>
+        )}
+
         {/* Footer */}
         <div className="text-center py-4 text-xs text-muted-foreground">
           <p>
-            © {new Date().getFullYear()}. Built with ❤️ using{" "}
+            &copy; {new Date().getFullYear()}. Built with ❤️ using{" "}
             <a
               href={`https://caffeine.ai?utm_source=caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(typeof window !== "undefined" ? window.location.hostname : "")}`}
               target="_blank"

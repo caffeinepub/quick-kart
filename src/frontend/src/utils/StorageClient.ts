@@ -487,50 +487,12 @@ export class StorageClient {
       methodName: "_caffeineStorageCreateCertificate",
       arg: args,
     });
-    const responseBody = result.response.body;
-
-    // Fast path: v3 response includes the certificate inline
-    if (isV3ResponseBody(responseBody)) {
-      console.log("Certificate (v3):", responseBody.certificate);
-      return responseBody.certificate;
+    const respone = result.response.body;
+    if (isV3ResponseBody(respone)) {
+      console.log("Certificate:", respone.certificate);
+      return respone.certificate;
     }
-
-    // Fallback: non-v3 response — poll readState to retrieve the certificate
-    console.warn(
-      "getCertificate: non-v3 response, falling back to readState polling",
-    );
-    const requestId = result.requestId as Uint8Array;
-    const maxAttempts = 20;
-    const pollIntervalMs = 1500;
-
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
-      try {
-        const readStateResponse = await (this.agent as any).readState(
-          this.backendCanisterId,
-          { paths: [[new TextEncoder().encode("request_status"), requestId]] },
-        );
-        if (
-          readStateResponse?.certificate &&
-          readStateResponse.certificate.length > 0
-        ) {
-          console.log(
-            "Certificate (readState fallback):",
-            readStateResponse.certificate,
-          );
-          return readStateResponse.certificate;
-        }
-      } catch (err) {
-        console.warn(
-          `getCertificate readState attempt ${attempt + 1} failed:`,
-          err,
-        );
-      }
-    }
-
-    throw new Error(
-      "Image upload failed: could not obtain a storage certificate from the backend. Please try again.",
-    );
+    throw new Error("Expected v3 response body");
   }
 
   public async putFile(

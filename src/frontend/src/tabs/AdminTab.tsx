@@ -22,6 +22,7 @@ import {
   ArrowLeft,
   CheckCircle,
   Edit2,
+  ImageIcon,
   Loader2,
   Package,
   Plus,
@@ -82,6 +83,8 @@ const EMPTY_FORM: ProductForm = {
 const PIN = "2477";
 const PIN_KEY = "adminPinVerified";
 const DEFAULT_LOCATION = "Delivering to Areas Near Atraulia";
+const DEFAULT_BANNER =
+  "/assets/generated/atraulia-escooter-banner.dim_800x400.jpg";
 
 type AdminSection = "products" | "orders" | "settings";
 
@@ -104,6 +107,13 @@ export function AdminTab({ onBack }: AdminTabProps) {
   // Image upload state
   const [imageUploading, setImageUploading] = useState(false);
   const [imageUploadProgress, setImageUploadProgress] = useState(0);
+
+  // Banner upload state
+  const [bannerUploading, setBannerUploading] = useState(false);
+  const [bannerUploadProgress, setBannerUploadProgress] = useState(0);
+  const [bannerImageUrl, setBannerImageUrl] = useState(
+    () => localStorage.getItem("bannerImageUrl") || DEFAULT_BANNER,
+  );
 
   // Orders state
   const [orders, setOrders] = useState<Order[]>([]);
@@ -205,6 +215,43 @@ export function AdminTab({ onBack }: AdminTabProps) {
     } finally {
       setImageUploading(false);
       setImageUploadProgress(0);
+    }
+  };
+
+  const handleBannerFileChange = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setBannerUploading(true);
+    setBannerUploadProgress(0);
+    try {
+      const config = await loadConfig();
+      const agent = new HttpAgent({ host: config.backend_host });
+      if (config.backend_host?.includes("localhost")) {
+        await agent.fetchRootKey().catch(() => {});
+      }
+      const storageClient = new StorageClient(
+        config.bucket_name,
+        config.storage_gateway_url,
+        config.backend_canister_id,
+        config.project_id,
+        agent,
+      );
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const { hash } = await storageClient.putFile(bytes, (pct) =>
+        setBannerUploadProgress(pct),
+      );
+      const url = await storageClient.getDirectURL(hash);
+      localStorage.setItem("bannerImageUrl", url);
+      setBannerImageUrl(url);
+      window.dispatchEvent(new Event("bannerImageUpdated"));
+      toast.success("✅ Banner updated!");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Banner upload failed");
+    } finally {
+      setBannerUploading(false);
+      setBannerUploadProgress(0);
     }
   };
 
@@ -722,9 +769,85 @@ export function AdminTab({ onBack }: AdminTabProps) {
       {/* Settings Section */}
       {activeSection === "settings" && (
         <div className="px-4 pt-6 space-y-4">
+          {/* Promotional Banner Card */}
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
+            className="bg-card rounded-2xl border border-border p-5 space-y-4"
+            data-ocid="admin.settings.panel"
+          >
+            <div className="flex items-center gap-3 mb-1">
+              <div className="w-9 h-9 rounded-xl orange-gradient flex items-center justify-center">
+                <ImageIcon size={16} className="text-white" />
+              </div>
+              <div>
+                <p className="font-black text-sm">Promotional Banner</p>
+                <p className="text-xs text-muted-foreground">
+                  Hero image shown on the customer home screen
+                </p>
+              </div>
+            </div>
+
+            {/* Banner Preview */}
+            <div className="rounded-xl overflow-hidden border border-border h-40">
+              <img
+                src={bannerImageUrl}
+                alt="Banner preview"
+                className="w-full h-full object-cover"
+                data-ocid="admin.settings.banner_preview"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = DEFAULT_BANNER;
+                }}
+              />
+            </div>
+
+            {/* Upload button */}
+            <div className="space-y-2">
+              <label
+                htmlFor="banner-image-file"
+                className={`flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border border-dashed border-border cursor-pointer text-sm font-semibold transition-colors hover:bg-muted ${
+                  bannerUploading ? "opacity-50 pointer-events-none" : ""
+                }`}
+                data-ocid="admin.settings.banner_upload"
+              >
+                {bannerUploading ? (
+                  <Loader2 size={15} className="animate-spin" />
+                ) : (
+                  <Upload size={15} />
+                )}
+                {bannerUploading
+                  ? `Uploading... ${bannerUploadProgress}%`
+                  : "Upload New Banner"}
+                <input
+                  id="banner-image-file"
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleBannerFileChange}
+                  disabled={bannerUploading}
+                />
+              </label>
+              {/* Progress bar */}
+              {bannerUploading && (
+                <div className="w-full bg-muted rounded-full h-1.5">
+                  <div
+                    className="bg-orange-500 h-1.5 rounded-full transition-all"
+                    style={{ width: `${bannerUploadProgress}%` }}
+                  />
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Recommended: 600×400px or wider. The image will scale to fit
+                mobile screens.
+              </p>
+            </div>
+          </motion.div>
+
+          {/* Delivery Location Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.05 }}
             className="bg-card rounded-2xl border border-border p-5 space-y-4"
             data-ocid="admin.settings.panel"
           >

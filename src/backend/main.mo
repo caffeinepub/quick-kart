@@ -242,4 +242,19 @@ actor {
       };
     };
   };
+
+  // Update order status (admin use): pendingVerification -> confirmed -> delivered
+  public shared func updateOrderStatus(orderId : Nat, newStatus : OrderStatus) : async Bool {
+    switch (orders.get(orderId)) {
+      case (null) { false };
+      case (?order) {
+        let updated = {
+          order with
+          status = newStatus;
+        };
+        orders.add(orderId, updated);
+        true;
+      };
+    };
+  };
 };

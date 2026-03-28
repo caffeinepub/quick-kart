@@ -1,15 +1,9 @@
-import {
-  CheckCircle,
-  Circle,
-  Home,
-  MapPin,
-  Package,
-  Truck,
-} from "lucide-react";
+import { CheckCircle, Home, MapPin, Package, Truck } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { DeliveryAddressCard } from "../components/DeliveryAddressCard";
 import { QRCodeCard } from "../components/QRCodeCard";
+import { useAuthStore } from "../store/authStore";
 
 const mockAddress = {
   flat: "Flat 4B",
@@ -29,6 +23,7 @@ const steps = [
 
 export function OrdersTab() {
   const [showTracking, setShowTracking] = useState(false);
+  const { user, isLoggedIn } = useAuthStore();
 
   return (
     <div className="flex flex-col min-h-screen pb-20" data-ocid="orders.page">
@@ -40,7 +35,47 @@ export function OrdersTab() {
       </header>
 
       <div className="px-4 pt-4 space-y-4">
-        {/* Active Order Card */}
+        {/* Auth notice */}
+        {!isLoggedIn && (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-card rounded-xl border border-border p-4 text-center"
+            data-ocid="orders.login.card"
+          >
+            <p className="text-sm text-muted-foreground">
+              🔐 Login to view your order history
+            </p>
+          </motion.div>
+        )}
+
+        {/* User order IDs */}
+        {isLoggedIn && user && user.orderIds.length > 0 && (
+          <div data-ocid="orders.user.list">
+            <h2 className="text-sm font-bold text-muted-foreground uppercase tracking-wide mb-2">
+              Your Orders
+            </h2>
+            {user.orderIds.map((id, i) => (
+              <motion.div
+                key={id}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.05 }}
+                className="bg-card rounded-xl border border-border px-4 py-3 mb-2"
+                data-ocid={`orders.item.${i + 1}`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold">Order #{id}</span>
+                  <span className="text-xs font-bold text-green-500">
+                    ✓ Placed
+                  </span>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
+
+        {/* Active Order Card (demo) */}
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}

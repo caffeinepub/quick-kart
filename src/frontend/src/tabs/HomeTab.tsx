@@ -16,6 +16,8 @@ import { useProducts } from "../hooks/useProducts";
 import { useCartStore } from "../store/cartStore";
 
 const DEFAULT_LOCATION = "Delivering to Areas Near Atraulia";
+const DEFAULT_BANNER =
+  "/assets/generated/atraulia-escooter-banner.dim_800x400.jpg";
 
 interface HomeTabProps {
   isDark: boolean;
@@ -28,6 +30,9 @@ export function HomeTab({ isDark, onToggleTheme, onTabChange }: HomeTabProps) {
   const [countdown, setCountdown] = useState(14 * 60 + 59);
   const [deliveryLocation, setDeliveryLocation] = useState(
     () => localStorage.getItem("deliveryLocation") || DEFAULT_LOCATION,
+  );
+  const [bannerImageUrl, setBannerImageUrl] = useState(
+    () => localStorage.getItem("bannerImageUrl") || DEFAULT_BANNER,
   );
   const getTotalItems = useCartStore((s) => s.getTotalItems);
   const { products, loading } = useProducts();
@@ -51,6 +56,16 @@ export function HomeTab({ isDark, onToggleTheme, onTabChange }: HomeTabProps) {
       window.removeEventListener("storage", handleStorage);
       window.removeEventListener("deliveryLocationUpdated", handleStorage);
     };
+  }, []);
+
+  useEffect(() => {
+    const handler = () => {
+      setBannerImageUrl(
+        localStorage.getItem("bannerImageUrl") || DEFAULT_BANNER,
+      );
+    };
+    window.addEventListener("bannerImageUpdated", handler);
+    return () => window.removeEventListener("bannerImageUpdated", handler);
   }, []);
 
   const formatTime = (s: number) => {
@@ -179,7 +194,7 @@ export function HomeTab({ isDark, onToggleTheme, onTabChange }: HomeTabProps) {
                 className="relative rounded-2xl overflow-hidden h-44"
               >
                 <img
-                  src="/assets/generated/hero-delivery.dim_600x400.png"
+                  src={bannerImageUrl}
                   alt="Fast delivery"
                   className="w-full h-full object-cover"
                 />
