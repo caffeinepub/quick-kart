@@ -27,12 +27,28 @@ const COUPONS: Record<string, number> = {
   FLASH50: 0.5,
 };
 
-const DISTANCE_TIERS = [
-  { label: "2 km", price: 19, desc: "Up to 2 km" },
-  { label: "5 km", price: 40, desc: "Up to 5 km" },
-  { label: "5km+", price: 60, desc: "5 km and above" },
-  { label: "10km+", price: 70, desc: "10 km and above" },
+const DEFAULT_DELIVERY_TIERS = [
+  { label: "0-2 km", price: 20, desc: "Up to 2 km" },
+  { label: "2-5 km", price: 40, desc: "Up to 5 km" },
+  { label: "5+ km", price: 60, desc: "5 km and above" },
 ];
+
+function getDeliveryTiers() {
+  try {
+    const stored = localStorage.getItem("deliveryTiers");
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return parsed.map((t: { label: string; price: number }) => ({
+        label: t.label,
+        price: t.price,
+        desc: t.label,
+      }));
+    }
+  } catch {}
+  return DEFAULT_DELIVERY_TIERS;
+}
+
+const DISTANCE_TIERS = getDeliveryTiers();
 
 interface AddressFormData {
   flat: string;

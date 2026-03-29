@@ -504,6 +504,23 @@ export function AdminTab({ onBack }: AdminTabProps) {
   const [qrUploading, setQrUploading] = useState(false);
   const [qrUploadProgress, setQrUploadProgress] = useState(0);
   const [savingPayment, setSavingPayment] = useState(false);
+  // Delivery fee tiers state
+  const DEFAULT_TIERS = [
+    { label: "0-2 km", price: 20 },
+    { label: "2-5 km", price: 40 },
+    { label: "5+ km", price: 60 },
+  ];
+  const [deliveryTiers, setDeliveryTiers] = useState<
+    Array<{ label: string; price: number }>
+  >(() => {
+    try {
+      const stored = localStorage.getItem("deliveryTiers");
+      return stored ? JSON.parse(stored) : DEFAULT_TIERS;
+    } catch {
+      return DEFAULT_TIERS;
+    }
+  });
+  const [savingDeliveryFee, setSavingDeliveryFee] = useState(false);
   const [flashSubscribers, setFlashSubscribers] = useState<
     Array<{ name: string; phone: string }>
   >([]);
@@ -750,6 +767,14 @@ export function AdminTab({ onBack }: AdminTabProps) {
     window.dispatchEvent(new Event("paymentSettingsUpdated"));
     toast.success("✅ Payment settings saved!");
     setSavingPayment(false);
+  };
+
+  const handleSaveDeliveryFee = () => {
+    setSavingDeliveryFee(true);
+    localStorage.setItem("deliveryTiers", JSON.stringify(deliveryTiers));
+    window.dispatchEvent(new Event("deliveryTiersUpdated"));
+    toast.success("✅ Delivery fee settings saved!");
+    setSavingDeliveryFee(false);
   };
 
   const openAdd = () => {
@@ -1632,6 +1657,71 @@ export function AdminTab({ onBack }: AdminTabProps) {
                 )}
               </div>
             </div>
+          </motion.div>
+
+          {/* Delivery Fee Settings Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.12 }}
+            className="bg-card rounded-2xl border border-border p-5 space-y-4"
+            data-ocid="admin.settings.delivery_fee_card"
+          >
+            <div className="flex items-center gap-3 mb-1">
+              <div className="w-9 h-9 rounded-xl orange-gradient flex items-center justify-center">
+                <Truck size={16} className="text-white" />
+              </div>
+              <div>
+                <h3 className="font-bold text-base">Delivery Fee Settings</h3>
+                <p className="text-xs text-muted-foreground">
+                  Set fees per distance range. Applied to all new orders.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {deliveryTiers.map((tier, idx) => (
+                <div key={tier.label} className="flex items-center gap-3">
+                  <div className="flex-1">
+                    <Label className="text-xs text-muted-foreground mb-1 block">
+                      {tier.label}
+                    </Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">
+                        ₹
+                      </span>
+                      <Input
+                        type="number"
+                        min={0}
+                        className="pl-7"
+                        value={tier.price}
+                        onChange={(e) => {
+                          const updated = [...deliveryTiers];
+                          updated[idx] = {
+                            ...updated[idx],
+                            price: Number.parseInt(e.target.value) || 0,
+                          };
+                          setDeliveryTiers(updated);
+                        }}
+                        data-ocid={`admin.settings.delivery_fee_input_${idx}`}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <Button
+              className="orange-gradient text-white font-bold w-full"
+              onClick={handleSaveDeliveryFee}
+              disabled={savingDeliveryFee}
+              data-ocid="admin.settings.save_delivery_fee_button"
+            >
+              {savingDeliveryFee ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              Save Delivery Fee Settings
+            </Button>
           </motion.div>
 
           {/* Payment Settings Card */}
