@@ -15,6 +15,7 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import type { backendInterface as BackendFull } from "../backend.d";
 import { DeliveryAddressCard } from "../components/DeliveryAddressCard";
 import { QRCodeCard } from "../components/QRCodeCard";
 import { createActorWithConfig } from "../config";
@@ -78,7 +79,8 @@ export function CartTab({ onLoginRequired }: { onLoginRequired: () => void }) {
   useEffect(() => {
     const fetchFees = async () => {
       try {
-        const backend = (await createActorWithConfig()) as any;
+        const backend =
+          (await createActorWithConfig()) as unknown as BackendFull;
         const settings = await backend.getDeliveryFeeSettings();
         const tiers = [
           {
@@ -98,21 +100,8 @@ export function CartTab({ onLoginRequired }: { onLoginRequired: () => void }) {
           },
         ];
         setDistanceTiers(tiers);
-        localStorage.setItem("deliveryTiers", JSON.stringify(tiers));
       } catch {
-        try {
-          const stored = localStorage.getItem("deliveryTiers");
-          if (stored) {
-            const parsed = JSON.parse(stored);
-            setDistanceTiers(
-              parsed.map((t: { label: string; price: number }) => ({
-                label: t.label,
-                price: t.price,
-                desc: t.label,
-              })),
-            );
-          }
-        } catch {}
+        // backend call failed, keep default tiers
       } finally {
         setLoadingFees(false);
       }

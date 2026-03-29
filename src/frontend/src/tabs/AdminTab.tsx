@@ -43,6 +43,7 @@ import { toast } from "sonner";
 
 import { HttpAgent } from "@icp-sdk/core/agent";
 import { ProductCategory } from "../backend";
+import type { backendInterface as BackendFull } from "../backend.d";
 import { createActorWithConfig, loadConfig } from "../config";
 import { useProducts } from "../hooks/useProducts";
 import { StorageClient } from "../utils/StorageClient";
@@ -558,7 +559,7 @@ export function AdminTab({ onBack }: AdminTabProps) {
       setFlashSubscribers(
         subs.map((s: any) => ({ name: s.name, phone: s.phone })),
       );
-    } catch {
+    } catch (_e) {
       // silently fail
     } finally {
       setLoadingSubscribers(false);
@@ -568,14 +569,14 @@ export function AdminTab({ onBack }: AdminTabProps) {
   const fetchDeliveryFeeSettings = useCallback(async () => {
     setLoadingDeliveryFee(true);
     try {
-      const actor = (await createActorWithConfig()) as any;
+      const actor = (await createActorWithConfig()) as unknown as BackendFull;
       const settings = await actor.getDeliveryFeeSettings();
       setDeliveryTiers([
         { label: "0-2 km", price: Number(settings.tier1Fee) },
         { label: "2-5 km", price: Number(settings.tier2Fee) },
         { label: "5+ km", price: Number(settings.tier3Fee) },
       ]);
-    } catch {
+    } catch (_e) {
       // keep defaults
     } finally {
       setLoadingDeliveryFee(false);
@@ -826,16 +827,25 @@ export function AdminTab({ onBack }: AdminTabProps) {
   const handleSaveDeliveryFee = async () => {
     setSavingDeliveryFee(true);
     try {
-      const actor = (await createActorWithConfig()) as any;
+      const actor = (await createActorWithConfig()) as unknown as BackendFull;
       await actor.updateDeliveryFeeSettings(
         deliveryTiers[0].price,
         deliveryTiers[1].price,
         deliveryTiers[2].price,
       );
-      toast.success("✅ Delivery fee settings saved to database!");
+      toast.success("Delivery fee updated successfully");
       window.dispatchEvent(new Event("deliveryTiersUpdated"));
-    } catch {
-      toast.error("Failed to save delivery fee settings. Please try again.");
+    } catch (e) {
+      const msg =
+        e instanceof Error
+          ? e.message
+          : "Failed to save delivery fee settings.";
+      toast.error(msg, {
+        action: {
+          label: "Retry",
+          onClick: () => handleSaveDeliveryFee(),
+        },
+      });
     } finally {
       setSavingDeliveryFee(false);
     }
@@ -1272,7 +1282,7 @@ export function AdminTab({ onBack }: AdminTabProps) {
                 } = {};
                 try {
                   parsedAddress = JSON.parse(order.address);
-                } catch {
+                } catch (_e) {
                   /* ignore */
                 }
 
@@ -1280,7 +1290,7 @@ export function AdminTab({ onBack }: AdminTabProps) {
                   [];
                 try {
                   items = JSON.parse(order.itemsJson);
-                } catch {
+                } catch (_e) {
                   /* ignore */
                 }
 
@@ -2033,7 +2043,7 @@ export function AdminTab({ onBack }: AdminTabProps) {
                   toast.success(`Notified ${flashSubscribers.length} users!`);
                   setFlashSubscribers([]);
                   setShowNotifyDialog(false);
-                } catch {
+                } catch (_e) {
                   toast.error("Failed to notify users.");
                 } finally {
                   setNotifyingUsers(false);

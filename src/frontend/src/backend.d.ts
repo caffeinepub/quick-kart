@@ -99,6 +99,18 @@ export interface NewOrder {
     address: string;
     customerName: string;
 }
+export interface DeliveryFeeSettings {
+    tier1Fee: number;
+    tier2Fee: number;
+    tier3Fee: number;
+    lastUpdated: bigint;
+}
+export interface FlashNotifySubscriber {
+    principal: Principal;
+    name: string;
+    phone: string;
+    subscribedAt: bigint;
+}
 export enum ProductCategory {
     food = "food",
     coldDrinks = "coldDrinks",
@@ -131,4 +143,9 @@ export interface backendInterface {
     getOrders(): Promise<Array<Order>>;
     confirmPayment(orderId: bigint): Promise<boolean>;
     updateOrderStatus(orderId: bigint, status: OrderStatus): Promise<boolean>;
+    getDeliveryFeeSettings(): Promise<DeliveryFeeSettings>;
+    updateDeliveryFeeSettings(tier1Fee: number, tier2Fee: number, tier3Fee: number): Promise<void>;
+    subscribeFlashNotify(name: string, phone: string): Promise<boolean>;
+    getFlashNotifySubscribers(): Promise<Array<FlashNotifySubscriber>>;
+    clearFlashNotifySubscribers(): Promise<void>;
 }
