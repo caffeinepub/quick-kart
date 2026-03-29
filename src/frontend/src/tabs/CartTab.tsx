@@ -66,6 +66,29 @@ export function CartTab({ onLoginRequired }: { onLoginRequired: () => void }) {
   const [placingOrder, setPlacingOrder] = useState(false);
   const [orderId, setOrderId] = useState<number | null>(null);
 
+  // Payment settings from admin
+  const [upiId, setUpiId] = useState(
+    () => localStorage.getItem("paymentUpiId") || "9161240484@axl",
+  );
+  const [qrImageUrl, setQrImageUrl] = useState(
+    () => localStorage.getItem("paymentQrImageUrl") || "",
+  );
+
+  useEffect(() => {
+    const syncSettings = () => {
+      setUpiId(localStorage.getItem("paymentUpiId") || "9161240484@axl");
+    };
+    const syncQr = () => {
+      setQrImageUrl(localStorage.getItem("paymentQrImageUrl") || "");
+    };
+    window.addEventListener("paymentSettingsUpdated", syncSettings);
+    window.addEventListener("paymentQrUpdated", syncQr);
+    return () => {
+      window.removeEventListener("paymentSettingsUpdated", syncSettings);
+      window.removeEventListener("paymentQrUpdated", syncQr);
+    };
+  }, []);
+
   // Pre-fill address from auth store
   useEffect(() => {
     if (user?.address) {
@@ -172,7 +195,7 @@ export function CartTab({ onLoginRequired }: { onLoginRequired: () => void }) {
   };
 
   const handleCopyUPI = () => {
-    navigator.clipboard.writeText("9161240484@axl").then(() => {
+    navigator.clipboard.writeText(upiId).then(() => {
       toast.success("UPI ID copied!");
     });
   };
@@ -370,7 +393,7 @@ export function CartTab({ onLoginRequired }: { onLoginRequired: () => void }) {
 
   // UPI PAYMENT SCREEN
   if (step === "upi") {
-    const upiLink = `upi://pay?pa=9161240484@axl&pn=QuickKart&am=${total}&cu=INR`;
+    const upiLink = `upi://pay?pa=${upiId}&pn=QuickKart&am=${total}&cu=INR`;
     return (
       <motion.div
         initial={{ opacity: 0, x: 20 }}
@@ -383,7 +406,7 @@ export function CartTab({ onLoginRequired }: { onLoginRequired: () => void }) {
             📱 Pay via UPI
           </h1>
           <p className="text-xs text-muted-foreground">
-            Quick & secure payment
+            Quick &amp; secure payment
           </p>
         </header>
         <div className="px-4 pt-5 space-y-4">
@@ -398,7 +421,7 @@ export function CartTab({ onLoginRequired }: { onLoginRequired: () => void }) {
             </p>
             <div className="flex items-center justify-between bg-muted rounded-xl px-4 py-3">
               <span className="font-mono font-bold text-foreground">
-                9161240484@axl
+                {upiId}
               </span>
               <button
                 type="button"
@@ -407,16 +430,30 @@ export function CartTab({ onLoginRequired }: { onLoginRequired: () => void }) {
                 data-ocid="cart.upi.secondary_button"
               >
                 <Copy size={14} />
-                Copy
+                Copy UPI ID
               </button>
             </div>
           </div>
 
-          <QRCodeCard
-            data={upiLink}
-            title="Scan to Pay"
-            subtitle="Any UPI app"
-          />
+          {qrImageUrl ? (
+            <div className="bg-card border border-border rounded-2xl p-4 flex flex-col items-center gap-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Scan to Pay
+              </p>
+              <img
+                src={qrImageUrl}
+                alt="UPI QR Code"
+                className="max-w-[200px] mx-auto rounded-xl border border-border shadow-sm"
+              />
+              <p className="text-xs text-muted-foreground">Any UPI app</p>
+            </div>
+          ) : (
+            <QRCodeCard
+              data={upiLink}
+              title="Scan to Pay"
+              subtitle="Any UPI app"
+            />
+          )}
 
           <div className="bg-blue-500/5 border border-blue-500/20 rounded-xl p-4">
             <p className="text-xs font-bold text-blue-500 mb-2">
@@ -428,6 +465,13 @@ export function CartTab({ onLoginRequired }: { onLoginRequired: () => void }) {
               <li>Pay ₹{total} and note the transaction</li>
               <li>Click &ldquo;I Have Paid&rdquo; below</li>
             </ol>
+          </div>
+
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 text-center">
+            <p className="text-sm font-bold text-amber-600">
+              💡 After completing payment, click the &ldquo;I Have Paid&rdquo;
+              button below
+            </p>
           </div>
 
           <motion.button

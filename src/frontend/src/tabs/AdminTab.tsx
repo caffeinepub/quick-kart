@@ -23,6 +23,7 @@ import {
   Bell,
   CheckCircle,
   Copy,
+  CreditCard,
   Edit2,
   ImageIcon,
   Loader2,
@@ -494,6 +495,15 @@ export function AdminTab({ onBack }: AdminTabProps) {
     () => localStorage.getItem("flashMaxProducts") || "10",
   );
   const [savingFlash, setSavingFlash] = useState(false);
+  const [upiId, setUpiId] = useState(
+    () => localStorage.getItem("paymentUpiId") || "9161240484@axl",
+  );
+  const [qrImageUrl, setQrImageUrl] = useState(
+    () => localStorage.getItem("paymentQrImageUrl") || "",
+  );
+  const [qrUploading, setQrUploading] = useState(false);
+  const [qrUploadProgress, setQrUploadProgress] = useState(0);
+  const [savingPayment, setSavingPayment] = useState(false);
   const [flashSubscribers, setFlashSubscribers] = useState<
     Array<{ name: string; phone: string }>
   >([]);
@@ -697,6 +707,49 @@ export function AdminTab({ onBack }: AdminTabProps) {
       setBannerUploading(false);
       setBannerUploadProgress(0);
     }
+  };
+
+  const handleQrFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setQrUploading(true);
+    setQrUploadProgress(0);
+    try {
+      const config = await loadConfig();
+      const agent = new HttpAgent({ host: config.backend_host });
+      if (config.backend_host?.includes("localhost")) {
+        await agent.fetchRootKey().catch(() => {});
+      }
+      const storageClient = new StorageClient(
+        config.bucket_name,
+        config.storage_gateway_url,
+        config.backend_canister_id,
+        config.project_id,
+        agent,
+      );
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const { hash } = await storageClient.putFile(bytes, (pct) =>
+        setQrUploadProgress(pct),
+      );
+      const url = await storageClient.getDirectURL(hash);
+      localStorage.setItem("paymentQrImageUrl", url);
+      setQrImageUrl(url);
+      window.dispatchEvent(new Event("paymentQrUpdated"));
+      toast.success("✅ QR code uploaded!");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "QR upload failed");
+    } finally {
+      setQrUploading(false);
+      setQrUploadProgress(0);
+    }
+  };
+
+  const handleSavePaymentSettings = () => {
+    setSavingPayment(true);
+    localStorage.setItem("paymentUpiId", upiId.trim());
+    window.dispatchEvent(new Event("paymentSettingsUpdated"));
+    toast.success("✅ Payment settings saved!");
+    setSavingPayment(false);
   };
 
   const openAdd = () => {
@@ -1579,6 +1632,100 @@ export function AdminTab({ onBack }: AdminTabProps) {
                 )}
               </div>
             </div>
+          </motion.div>
+
+          {/* Payment Settings Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+            className="bg-card rounded-2xl border border-border p-5 space-y-4"
+            data-ocid="admin.settings.payment_card"
+          >
+            <div className="flex items-center gap-3 mb-1">
+              <div className="w-9 h-9 rounded-xl orange-gradient flex items-center justify-center">
+                <CreditCard size={16} className="text-white" />
+              </div>
+              <div>
+                <h3 className="font-bold text-base">Payment Settings</h3>
+                <p className="text-xs text-muted-foreground">
+                  UPI ID and QR code shown at checkout
+                </p>
+              </div>
+            </div>
+
+            {/* UPI ID input */}
+            <div className="space-y-1.5">
+              <Label htmlFor="upi-id-input">UPI ID</Label>
+              <Input
+                id="upi-id-input"
+                placeholder="yourname@bank"
+                value={upiId}
+                onChange={(e) => setUpiId(e.target.value)}
+                data-ocid="admin.settings.upi_id_input"
+              />
+            </div>
+
+            {/* QR Code upload */}
+            <div className="space-y-2">
+              <Label>UPI QR Code</Label>
+              {qrImageUrl ? (
+                <div className="flex justify-center">
+                  <img
+                    src={qrImageUrl}
+                    alt="UPI QR Code"
+                    className="max-w-[180px] w-full rounded-xl border border-border object-contain"
+                  />
+                </div>
+              ) : null}
+              <label
+                htmlFor="qr-image-file"
+                className={`flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border border-dashed border-border cursor-pointer text-sm font-semibold transition-colors hover:bg-muted ${
+                  qrUploading ? "opacity-50 pointer-events-none" : ""
+                }`}
+                data-ocid="admin.settings.qr_upload_button"
+              >
+                {qrUploading ? (
+                  <Loader2 size={15} className="animate-spin" />
+                ) : (
+                  <Upload size={15} />
+                )}
+                {qrUploading
+                  ? `Uploading... ${qrUploadProgress}%`
+                  : "Upload QR Code"}
+                <input
+                  id="qr-image-file"
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleQrFileChange}
+                  disabled={qrUploading}
+                />
+              </label>
+              {qrUploading && (
+                <div className="w-full bg-muted rounded-full h-1.5">
+                  <div
+                    className="bg-orange-500 h-1.5 rounded-full transition-all"
+                    style={{ width: `${qrUploadProgress}%` }}
+                  />
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Upload your UPI QR code. Shown to customers during checkout.
+              </p>
+            </div>
+
+            <Button
+              className="orange-gradient text-white font-bold w-full"
+              onClick={handleSavePaymentSettings}
+              disabled={savingPayment}
+              data-ocid="admin.settings.save_payment_button"
+            >
+              {savingPayment ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : null}
+              Save Payment Settings
+            </Button>
           </motion.div>
         </div>
       )}
