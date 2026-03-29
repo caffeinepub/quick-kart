@@ -517,16 +517,9 @@ export function AdminTab({ onBack }: AdminTabProps) {
     { label: "2-5 km", price: 40 },
     { label: "5+ km", price: 60 },
   ];
-  const [deliveryTiers, setDeliveryTiers] = useState<
-    Array<{ label: string; price: number }>
-  >(() => {
-    try {
-      const stored = localStorage.getItem("deliveryTiers");
-      return stored ? JSON.parse(stored) : DEFAULT_TIERS;
-    } catch {
-      return DEFAULT_TIERS;
-    }
-  });
+  const [deliveryTiers, setDeliveryTiers] =
+    useState<Array<{ label: string; price: number }>>(DEFAULT_TIERS);
+  const [_loadingDeliveryFee, setLoadingDeliveryFee] = useState(false);
   const [savingDeliveryFee, setSavingDeliveryFee] = useState(false);
   const [flashSubscribers, setFlashSubscribers] = useState<
     Array<{ name: string; phone: string }>
@@ -572,11 +565,34 @@ export function AdminTab({ onBack }: AdminTabProps) {
     }
   }, []);
 
+  const fetchDeliveryFeeSettings = useCallback(async () => {
+    setLoadingDeliveryFee(true);
+    try {
+      const actor = (await createActorWithConfig()) as any;
+      const settings = await actor.getDeliveryFeeSettings();
+      setDeliveryTiers([
+        { label: "0-2 km", price: Number(settings.tier1Fee) },
+        { label: "2-5 km", price: Number(settings.tier2Fee) },
+        { label: "5+ km", price: Number(settings.tier3Fee) },
+      ]);
+    } catch {
+      // keep defaults
+    } finally {
+      setLoadingDeliveryFee(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (verified && activeSection === "settings") {
       fetchFlashSubscribers();
+      fetchDeliveryFeeSettings();
     }
-  }, [verified, activeSection, fetchFlashSubscribers]);
+  }, [
+    verified,
+    activeSection,
+    fetchFlashSubscribers,
+    fetchDeliveryFeeSettings,
+  ]);
   // eslint-disable-next-line
 
   const handleUpdateStatus = async (
@@ -807,12 +823,22 @@ export function AdminTab({ onBack }: AdminTabProps) {
     setSavingPayment(false);
   };
 
-  const handleSaveDeliveryFee = () => {
+  const handleSaveDeliveryFee = async () => {
     setSavingDeliveryFee(true);
-    localStorage.setItem("deliveryTiers", JSON.stringify(deliveryTiers));
-    window.dispatchEvent(new Event("deliveryTiersUpdated"));
-    toast.success("✅ Delivery fee settings saved!");
-    setSavingDeliveryFee(false);
+    try {
+      const actor = (await createActorWithConfig()) as any;
+      await actor.updateDeliveryFeeSettings(
+        deliveryTiers[0].price,
+        deliveryTiers[1].price,
+        deliveryTiers[2].price,
+      );
+      toast.success("✅ Delivery fee settings saved to database!");
+      window.dispatchEvent(new Event("deliveryTiersUpdated"));
+    } catch {
+      toast.error("Failed to save delivery fee settings. Please try again.");
+    } finally {
+      setSavingDeliveryFee(false);
+    }
   };
 
   const openAdd = () => {

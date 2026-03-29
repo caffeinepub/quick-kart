@@ -33,23 +33,6 @@ const DEFAULT_DELIVERY_TIERS = [
   { label: "5+ km", price: 60, desc: "5 km and above" },
 ];
 
-function getDeliveryTiers() {
-  try {
-    const stored = localStorage.getItem("deliveryTiers");
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      return parsed.map((t: { label: string; price: number }) => ({
-        label: t.label,
-        price: t.price,
-        desc: t.label,
-      }));
-    }
-  } catch {}
-  return DEFAULT_DELIVERY_TIERS;
-}
-
-const DISTANCE_TIERS = getDeliveryTiers();
-
 interface AddressFormData {
   flat: string;
   building: string;
@@ -67,6 +50,8 @@ export function CartTab({ onLoginRequired }: { onLoginRequired: () => void }) {
   const [couponInput, setCouponInput] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState("");
   const [selectedDistanceIdx, setSelectedDistanceIdx] = useState(0);
+  const [distanceTiers, setDistanceTiers] = useState(DEFAULT_DELIVERY_TIERS);
+  const [_loadingFees, setLoadingFees] = useState(true);
   const [address, setAddress] = useState<AddressFormData>({
     flat: "",
     building: "",
@@ -91,6 +76,55 @@ export function CartTab({ onLoginRequired }: { onLoginRequired: () => void }) {
   );
 
   useEffect(() => {
+    const fetchFees = async () => {
+      try {
+        const backend = (await createActorWithConfig()) as any;
+        const settings = await backend.getDeliveryFeeSettings();
+        const tiers = [
+          {
+            label: "0-2 km",
+            price: Number(settings.tier1Fee),
+            desc: "Up to 2 km",
+          },
+          {
+            label: "2-5 km",
+            price: Number(settings.tier2Fee),
+            desc: "Up to 5 km",
+          },
+          {
+            label: "5+ km",
+            price: Number(settings.tier3Fee),
+            desc: "5 km and above",
+          },
+        ];
+        setDistanceTiers(tiers);
+        localStorage.setItem("deliveryTiers", JSON.stringify(tiers));
+      } catch {
+        try {
+          const stored = localStorage.getItem("deliveryTiers");
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            setDistanceTiers(
+              parsed.map((t: { label: string; price: number }) => ({
+                label: t.label,
+                price: t.price,
+                desc: t.label,
+              })),
+            );
+          }
+        } catch {}
+      } finally {
+        setLoadingFees(false);
+      }
+    };
+    fetchFees();
+    const onTiersUpdated = () => fetchFees();
+    window.addEventListener("deliveryTiersUpdated", onTiersUpdated);
+    return () =>
+      window.removeEventListener("deliveryTiersUpdated", onTiersUpdated);
+  }, []);
+
+  useEffect(() => {
     const syncSettings = () => {
       setUpiId(localStorage.getItem("paymentUpiId") || "9161240484@axl");
     };
@@ -113,7 +147,7 @@ export function CartTab({ onLoginRequired }: { onLoginRequired: () => void }) {
   }, [user?.address]);
 
   const subtotal = items.reduce((s, i) => s + i.product.price * i.quantity, 0);
-  const deliveryFee = DISTANCE_TIERS[selectedDistanceIdx].price;
+  const deliveryFee = distanceTiers[selectedDistanceIdx].price;
   const platformFee = 5;
   const gst = Math.round(subtotal * 0.05);
   const discount = appliedCoupon
@@ -662,7 +696,7 @@ export function CartTab({ onLoginRequired }: { onLoginRequired: () => void }) {
             <span className="text-sm font-bold">📍 Delivery Distance</span>
           </div>
           <div className="flex gap-2 flex-wrap">
-            {DISTANCE_TIERS.map((tier, idx) => (
+            {distanceTiers.map((tier, idx) => (
               <button
                 type="button"
                 key={tier.label}
@@ -702,7 +736,7 @@ export function CartTab({ onLoginRequired }: { onLoginRequired: () => void }) {
             <span className="text-muted-foreground">
               Delivery Fee
               <span className="ml-1 text-xs text-orange">
-                ({DISTANCE_TIERS[selectedDistanceIdx].label})
+                ({distanceTiers[selectedDistanceIdx].label})
               </span>
             </span>
             <span className="font-medium">₹{deliveryFee}</span>

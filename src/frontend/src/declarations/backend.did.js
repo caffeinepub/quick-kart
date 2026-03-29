@@ -99,6 +99,8 @@ export const OrderStatus = IDL.Variant({
   'pendingVerification' : IDL.Null,
   'confirmed' : IDL.Null,
   'delivered' : IDL.Null,
+  'outForDelivery' : IDL.Null,
+  'cancelled' : IDL.Null,
 });
 export const NewOrder = IDL.Record({
   'itemsJson' : IDL.Text,
@@ -116,6 +118,18 @@ export const Order = IDL.Record({
   'address' : IDL.Text,
   'customerName' : IDL.Text,
   'createdAt' : IDL.Int,
+});
+export const FlashNotifySubscriber = IDL.Record({
+  'principal' : IDL.Principal,
+  'name' : IDL.Text,
+  'phone' : IDL.Text,
+  'subscribedAt' : IDL.Int,
+});
+export const DeliveryFeeSettings = IDL.Record({
+  'tier1Fee' : IDL.Float64,
+  'tier2Fee' : IDL.Float64,
+  'tier3Fee' : IDL.Float64,
+  'lastUpdated' : IDL.Int,
 });
 
 export const idlService = IDL.Service({
@@ -147,6 +161,11 @@ export const idlService = IDL.Service({
   'getOrders' : IDL.Func([], [IDL.Vec(Order)], ['query']),
   'confirmPayment' : IDL.Func([IDL.Nat], [IDL.Bool], []),
   'updateOrderStatus' : IDL.Func([IDL.Nat, OrderStatus], [IDL.Bool], []),
+  'subscribeFlashNotify' : IDL.Func([IDL.Text, IDL.Text], [IDL.Bool], []),
+  'getFlashNotifySubscribers' : IDL.Func([], [IDL.Vec(FlashNotifySubscriber)], ['query']),
+  'clearFlashNotifySubscribers' : IDL.Func([], [], []),
+  'getDeliveryFeeSettings' : IDL.Func([], [DeliveryFeeSettings], ['query']),
+  'updateDeliveryFeeSettings' : IDL.Func([IDL.Float64, IDL.Float64, IDL.Float64], [], []),
 });
 
 export const idlInitArgs = [];
@@ -185,7 +204,10 @@ export const idlFactory = ({ IDL }) => {
     'stock' : IDL.Nat, 'imageUrl' : IDL.Text, 'category' : ProductCategory, 'price' : IDL.Float64,
   });
   const PaymentMethod = IDL.Variant({ 'cod' : IDL.Null, 'upi' : IDL.Null });
-  const OrderStatus = IDL.Variant({ 'pendingVerification' : IDL.Null, 'confirmed' : IDL.Null, 'delivered' : IDL.Null });
+  const OrderStatus = IDL.Variant({
+    'pendingVerification' : IDL.Null, 'confirmed' : IDL.Null,
+    'delivered' : IDL.Null, 'outForDelivery' : IDL.Null, 'cancelled' : IDL.Null,
+  });
   const NewOrder = IDL.Record({
     'itemsJson' : IDL.Text, 'totalAmount' : IDL.Float64, 'paymentMethod' : PaymentMethod,
     'address' : IDL.Text, 'customerName' : IDL.Text,
@@ -194,6 +216,12 @@ export const idlFactory = ({ IDL }) => {
     'id' : IDL.Nat, 'itemsJson' : IDL.Text, 'totalAmount' : IDL.Float64,
     'paymentMethod' : PaymentMethod, 'status' : OrderStatus, 'address' : IDL.Text,
     'customerName' : IDL.Text, 'createdAt' : IDL.Int,
+  });
+  const FlashNotifySubscriber = IDL.Record({
+    'principal' : IDL.Principal, 'name' : IDL.Text, 'phone' : IDL.Text, 'subscribedAt' : IDL.Int,
+  });
+  const DeliveryFeeSettings = IDL.Record({
+    'tier1Fee' : IDL.Float64, 'tier2Fee' : IDL.Float64, 'tier3Fee' : IDL.Float64, 'lastUpdated' : IDL.Int,
   });
 
   return IDL.Service({
@@ -225,6 +253,11 @@ export const idlFactory = ({ IDL }) => {
     'getOrders' : IDL.Func([], [IDL.Vec(Order)], ['query']),
     'confirmPayment' : IDL.Func([IDL.Nat], [IDL.Bool], []),
     'updateOrderStatus' : IDL.Func([IDL.Nat, OrderStatus], [IDL.Bool], []),
+    'subscribeFlashNotify' : IDL.Func([IDL.Text, IDL.Text], [IDL.Bool], []),
+    'getFlashNotifySubscribers' : IDL.Func([], [IDL.Vec(FlashNotifySubscriber)], ['query']),
+    'clearFlashNotifySubscribers' : IDL.Func([], [], []),
+    'getDeliveryFeeSettings' : IDL.Func([], [DeliveryFeeSettings], ['query']),
+    'updateDeliveryFeeSettings' : IDL.Func([IDL.Float64, IDL.Float64, IDL.Float64], [], []),
   });
 };
 

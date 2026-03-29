@@ -84,7 +84,7 @@ export interface http_request_result {
   'headers' : Array<http_header>,
 }
 export type PaymentMethod = { 'cod' : null } | { 'upi' : null };
-export type OrderStatus = { 'pendingVerification' : null } | { 'confirmed' : null } | { 'delivered' : null };
+export type OrderStatus = { 'pendingVerification' : null } | { 'confirmed' : null } | { 'delivered' : null } | { 'outForDelivery' : null } | { 'cancelled' : null };
 export interface NewOrder {
   'itemsJson' : string,
   'totalAmount' : number,
@@ -107,6 +107,12 @@ export interface FlashNotifySubscriber {
   'name' : string,
   'phone' : string,
   'subscribedAt' : bigint,
+}
+export interface DeliveryFeeSettings {
+  'tier1Fee' : number,
+  'tier2Fee' : number,
+  'tier3Fee' : number,
+  'lastUpdated' : bigint,
 }
 export interface _SERVICE {
   '_caffeineStorageBlobIsLive' : ActorMethod<[Uint8Array], boolean>,
@@ -152,6 +158,8 @@ export interface _SERVICE {
   'subscribeFlashNotify' : ActorMethod<[string, string], boolean>,
   'getFlashNotifySubscribers' : ActorMethod<[], Array<FlashNotifySubscriber>>,
   'clearFlashNotifySubscribers' : ActorMethod<[], undefined>,
+  'getDeliveryFeeSettings' : ActorMethod<[], DeliveryFeeSettings>,
+  'updateDeliveryFeeSettings' : ActorMethod<[number, number, number], undefined>,
 }
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];

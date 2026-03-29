@@ -1,4 +1,3 @@
-
 import Runtime "mo:core/Runtime";
 import Nat "mo:core/Nat";
 import Float "mo:core/Float";
@@ -93,6 +92,14 @@ actor {
     subscribedAt : Int;
   };
 
+  // Global delivery fee settings (distance-based tiers)
+  public type DeliveryFeeSettings = {
+    tier1Fee : Float;   // 0-2 km
+    tier2Fee : Float;   // 2-5 km
+    tier3Fee : Float;   // 5+ km
+    lastUpdated : Int;
+  };
+
   var nextId = 1;
   let products = Map.empty<Nat, Product>();
 
@@ -103,6 +110,14 @@ actor {
 
   // Flash notify subscribers (keyed by principal to deduplicate)
   let flashNotifySubscribers = Map.empty<Principal, FlashNotifySubscriber>();
+
+  // Global delivery fee settings - single source of truth
+  var deliveryFeeSettings : DeliveryFeeSettings = {
+    tier1Fee = 20.0;
+    tier2Fee = 40.0;
+    tier3Fee = 60.0;
+    lastUpdated = 0;
+  };
 
   // Access control setup
   let accessControlState = AccessControl.initState();
@@ -287,6 +302,20 @@ actor {
   public shared func clearFlashNotifySubscribers() : async () {
     for (key in flashNotifySubscribers.keys().toArray().vals()) {
       flashNotifySubscribers.remove(key);
+    };
+  };
+
+  // Delivery Fee Settings - global single source of truth
+  public query func getDeliveryFeeSettings() : async DeliveryFeeSettings {
+    deliveryFeeSettings;
+  };
+
+  public shared func updateDeliveryFeeSettings(tier1Fee : Float, tier2Fee : Float, tier3Fee : Float) : async () {
+    deliveryFeeSettings := {
+      tier1Fee;
+      tier2Fee;
+      tier3Fee;
+      lastUpdated = Time.now();
     };
   };
 };
