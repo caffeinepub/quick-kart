@@ -51,7 +51,8 @@ type OrderStatusKind =
   | "pendingVerification"
   | "confirmed"
   | "outForDelivery"
-  | "delivered";
+  | "delivered"
+  | "cancelled";
 
 interface Order {
   id: bigint;
@@ -62,8 +63,10 @@ interface Order {
     | { __kind__: "pendingVerification" }
     | { __kind__: "confirmed" }
     | { __kind__: "outForDelivery" }
-    | { __kind__: "delivered" };
+    | { __kind__: "delivered" }
+    | { __kind__: "cancelled" };
   address: string;
+  cancelReason?: string;
   customerName: string;
   createdAt: bigint;
 }
@@ -471,6 +474,10 @@ export function AdminTab({ onBack }: AdminTabProps) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [updatingStatusId, setUpdatingStatusId] = useState<bigint | null>(null);
+  const [cancelTargetId, setCancelTargetId] = useState<bigint | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelling, setCancelling] = useState(false);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
 
   // Order details page state
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -594,6 +601,7 @@ export function AdminTab({ onBack }: AdminTabProps) {
       confirmed: "✅ Order Confirmed!",
       outForDelivery: "🛵 Out for Delivery!",
       delivered: "📦 Marked as Delivered!",
+      cancelled: "❌ Order Cancelled",
     };
 
     if (newStatus === "outForDelivery") {
@@ -619,6 +627,36 @@ export function AdminTab({ onBack }: AdminTabProps) {
       await fetchOrders();
     } finally {
       setUpdatingStatusId(null);
+    }
+  };
+
+  const handleCancelOrder = async () => {
+    if (!cancelTargetId) return;
+    setCancelling(true);
+    setOrders((prev) =>
+      prev.map((o) =>
+        o.id === cancelTargetId
+          ? {
+              ...o,
+              status: { __kind__: "cancelled" as const },
+              cancelReason: cancelReason.trim() || "Cancelled by admin",
+            }
+          : o,
+      ),
+    );
+    try {
+      const actor = (await createActorWithConfig()) as any;
+      await actor.updateOrderStatus(cancelTargetId, { cancelled: null });
+      toast.success("❌ Order cancelled");
+      setShowCancelDialog(false);
+      setCancelReason("");
+      setCancelTargetId(null);
+      setTimeout(() => fetchOrders(), 800);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to cancel order");
+      await fetchOrders();
+    } finally {
+      setCancelling(false);
     }
   };
 
@@ -1197,6 +1235,7 @@ export function AdminTab({ onBack }: AdminTabProps) {
                 const isUpdatingThis = updatingStatusId === order.id;
                 const next = nextStatus(statusKind);
                 const isDelivered = statusKind === "delivered";
+                const isCancelled = statusKind === "cancelled";
 
                 let parsedAddress: {
                   flat?: string;
@@ -1245,6 +1284,7 @@ export function AdminTab({ onBack }: AdminTabProps) {
                     className: "bg-green-600 hover:bg-green-700 text-white",
                   },
                   delivered: null,
+                  cancelled: null,
                 };
 
                 const action = actionConfig[statusKind];
@@ -1285,13 +1325,20 @@ export function AdminTab({ onBack }: AdminTabProps) {
                               ✅ Delivered
                             </span>
                           )}
+                          {isCancelled && (
+                            <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-500/15 text-red-500">
+                              ❌ Cancelled
+                            </span>
+                          )}
                         </div>
                       </div>
 
                       {/* Status Stepper */}
-                      <div className="mt-3">
-                        <OrderStatusStepper current={statusKind} />
-                      </div>
+                      {!isCancelled && (
+                        <div className="mt-3">
+                          <OrderStatusStepper current={statusKind} />
+                        </div>
+                      )}
                     </div>
 
                     {/* Order Body */}
@@ -1379,7 +1426,7 @@ export function AdminTab({ onBack }: AdminTabProps) {
                       )}
 
                       {/* Action button */}
-                      {action && next && (
+                      {!isCancelled && action && next && (
                         <button
                           type="button"
                           onClick={() => handleUpdateStatus(order.id, next)}
@@ -1396,6 +1443,34 @@ export function AdminTab({ onBack }: AdminTabProps) {
                             action.label
                           )}
                         </button>
+                      )}
+                      {/* Cancel button */}
+                      {!isCancelled && !isDelivered && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCancelTargetId(order.id);
+                            setShowCancelDialog(true);
+                          }}
+                          disabled={isUpdatingThis}
+                          className="w-full py-2 rounded-xl text-sm font-bold text-red-500 border border-red-500/30 bg-red-500/5 hover:bg-red-500/15 transition-all mt-2"
+                          data-ocid={`admin.orders.delete_button.${i + 1}`}
+                        >
+                          ❌ Cancel Order
+                        </button>
+                      )}
+                      {/* Cancelled state */}
+                      {isCancelled && (
+                        <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2.5 mt-2">
+                          <p className="text-xs font-bold text-red-500">
+                            ❌ Order Cancelled
+                          </p>
+                          {order.cancelReason && (
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                              Reason: {order.cancelReason}
+                            </p>
+                          )}
+                        </div>
                       )}
                     </div>
                   </motion.div>
@@ -1819,6 +1894,67 @@ export function AdminTab({ onBack }: AdminTabProps) {
           </motion.div>
         </div>
       )}
+
+      {/* Cancel Order Dialog */}
+      <Dialog
+        open={showCancelDialog}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowCancelDialog(false);
+            setCancelReason("");
+            setCancelTargetId(null);
+          }
+        }}
+      >
+        <DialogContent
+          className="max-w-sm mx-auto rounded-2xl"
+          data-ocid="admin.orders.dialog"
+        >
+          <DialogHeader>
+            <DialogTitle>Cancel Order</DialogTitle>
+            <DialogDescription>
+              Enter a reason for cancellation (optional). The customer will see
+              this reason.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            placeholder="Enter reason for cancellation (optional)"
+            value={cancelReason}
+            onChange={(e) => setCancelReason(e.target.value)}
+            rows={3}
+            className="resize-none"
+            data-ocid="admin.orders.textarea"
+          />
+          <DialogFooter className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowCancelDialog(false);
+                setCancelReason("");
+                setCancelTargetId(null);
+              }}
+              data-ocid="admin.orders.cancel_button"
+            >
+              Keep Order
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleCancelOrder}
+              disabled={cancelling}
+              data-ocid="admin.orders.confirm_button"
+            >
+              {cancelling ? (
+                <>
+                  <Loader2 size={14} className="animate-spin mr-1" />
+                  Cancelling...
+                </>
+              ) : (
+                "Cancel Order"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Flash Notify Dialog */}
       <Dialog open={showNotifyDialog} onOpenChange={setShowNotifyDialog}>
