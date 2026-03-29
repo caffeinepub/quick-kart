@@ -92,13 +92,46 @@ actor {
     subscribedAt : Int;
   };
 
-  // Global delivery fee settings (distance-based tiers)
+  // Migration: keep old stable var to absorb existing canister data
+  var deliveryFeeSettings : {tier1Fee : Float; tier2Fee : Float; tier3Fee : Float; lastUpdated : Int} = {
+    tier1Fee = 20.0;
+    tier2Fee = 40.0;
+    tier3Fee = 60.0;
+    lastUpdated = 0;
+  };
+
+  // Global delivery fee settings (distance-based tiers) - new type
   public type DeliveryFeeSettings = {
-    tier1Fee : Float;   // 0-2 km
-    tier2Fee : Float;   // 2-5 km
-    tier3Fee : Float;   // 5+ km
+    range1 : Float;   // 0-2 km
+    range2 : Float;   // 2-5 km
+    range3 : Float;   // 5+ km
     lastUpdated : Int;
   };
+  // New delivery config: base fee + optional extra charge
+  public type DeliveryConfig = {
+    baseDeliveryFee : Float;
+    extraCharge : Float;
+    lastUpdated : Int;
+  };
+  // Distance-based delivery settings (4 ranges)
+  public type DistanceDeliverySettings = {
+    baseDeliveryFee : Float;
+    range1Extra : Float;   // 0-2 km extra: default 0
+    range2Extra : Float;   // 2-5 km extra: default 10
+    range3Extra : Float;   // 5-8 km extra: default 20
+    range4Extra : Float;   // 8+ km extra: default 40
+    lastUpdated : Int;
+  };
+  // Radius-based delivery settings (single radius + per-km charge)
+  public type RadiusDeliveryConfig = {
+    radiusKm : Float;
+    baseCharge : Float;
+    chargePerKm : Float;
+    lastUpdated : Int;
+  };
+
+
+
 
   var nextId = 1;
   let products = Map.empty<Nat, Product>();
@@ -111,12 +144,50 @@ actor {
   // Flash notify subscribers (keyed by principal to deduplicate)
   let flashNotifySubscribers = Map.empty<Principal, FlashNotifySubscriber>();
 
-  // Global delivery fee settings - single source of truth
-  var deliveryFeeSettings : DeliveryFeeSettings = {
-    tier1Fee = 20.0;
-    tier2Fee = 40.0;
-    tier3Fee = 60.0;
+  // Global delivery fee settings - new type (migrated from deliveryFeeSettings)
+  var deliverySettings : DeliveryFeeSettings = {
+    range1 = 20.0;
+    range2 = 40.0;
+    range3 = 60.0;
     lastUpdated = 0;
+  };
+
+  // New delivery config state (base + extra)
+  var deliveryConfig : DeliveryConfig = {
+    baseDeliveryFee = 20.0;
+    extraCharge = 0.0;
+    lastUpdated = 0;
+  };
+  // Distance-based delivery settings state
+  var distanceDeliverySettings : DistanceDeliverySettings = {
+    baseDeliveryFee = 20.0;
+    range1Extra = 0.0;
+    range2Extra = 10.0;
+    range3Extra = 20.0;
+    range4Extra = 40.0;
+    lastUpdated = 0;
+  };
+  // Radius-based delivery config state
+  var radiusDeliveryConfig : RadiusDeliveryConfig = {
+    radiusKm = 10.0;
+    baseCharge = 20.0;
+    chargePerKm = 5.0;
+    lastUpdated = 0;
+  };
+
+
+
+
+  // Migration: copy old tier fields to new range fields on upgrade
+  system func postupgrade() {
+    if (deliveryFeeSettings.lastUpdated > 0) {
+      deliverySettings := {
+        range1 = deliveryFeeSettings.tier1Fee;
+        range2 = deliveryFeeSettings.tier2Fee;
+        range3 = deliveryFeeSettings.tier3Fee;
+        lastUpdated = deliveryFeeSettings.lastUpdated;
+      };
+    };
   };
 
   // Access control setup
@@ -307,14 +378,57 @@ actor {
 
   // Delivery Fee Settings - global single source of truth
   public query func getDeliveryFeeSettings() : async DeliveryFeeSettings {
-    deliveryFeeSettings;
+    deliverySettings;
   };
 
-  public shared func updateDeliveryFeeSettings(tier1Fee : Float, tier2Fee : Float, tier3Fee : Float) : async () {
-    deliveryFeeSettings := {
-      tier1Fee;
-      tier2Fee;
-      tier3Fee;
+  public shared func updateDeliveryFeeSettings(range1 : Float, range2 : Float, range3 : Float) : async () {
+    deliverySettings := {
+      range1;
+      range2;
+      range3;
+      lastUpdated = Time.now();
+    };
+  };
+
+  // New DeliveryConfig functions
+  public query func getDeliveryConfig() : async DeliveryConfig {
+    deliveryConfig;
+  };
+
+  public shared func updateDeliveryConfig(baseDeliveryFee : Float, extraCharge : Float) : async () {
+    deliveryConfig := {
+      baseDeliveryFee;
+      extraCharge;
+      lastUpdated = Time.now();
+    };
+  };
+
+  // Distance delivery settings
+  public query func getDistanceDeliverySettings() : async DistanceDeliverySettings {
+    distanceDeliverySettings;
+  };
+
+  public shared func updateDistanceDeliverySettings(baseDeliveryFee : Float, range1Extra : Float, range2Extra : Float, range3Extra : Float, range4Extra : Float) : async () {
+    distanceDeliverySettings := {
+      baseDeliveryFee;
+      range1Extra;
+      range2Extra;
+      range3Extra;
+      range4Extra;
+      lastUpdated = Time.now();
+    };
+  };
+
+  // Radius-based delivery config (new)
+  public query func getRadiusDeliveryConfig() : async RadiusDeliveryConfig {
+    radiusDeliveryConfig;
+  };
+
+  public shared func updateRadiusDeliveryConfig(radiusKm : Float, baseCharge : Float, chargePerKm : Float) : async () {
+    radiusDeliveryConfig := {
+      radiusKm;
+      baseCharge;
+      chargePerKm;
       lastUpdated = Time.now();
     };
   };

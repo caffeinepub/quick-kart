@@ -1,32 +1,30 @@
-# Quick Kart — Flash Deals Notify Me & Admin Notify
+# Quick Kart
 
 ## Current State
-- Flash deals section on HomeTab is conditionally rendered with `{flashEnabled && (...)}` — hidden when disabled, nothing shown
-- Admin panel has flash deals toggle, title, timer, max products settings saved to localStorage
-- No "coming soon" state, no Notify Me feature, no subscriber storage
+The backend has `updateDistanceDeliverySettings(baseDeliveryFee, range1Extra, range2Extra, range3Extra, range4Extra)` with 4 range-based distance tiers. AdminTab uses this to manage delivery fees. CartTab uses `estimateDistanceRange(pincode)` to pick a range and compute fee.
 
 ## Requested Changes (Diff)
 
 ### Add
-- Backend: `FlashNotifySubscriber` type `{ name: Text; phone: Text; principal: Principal }`
-- Backend: `subscribeFlashNotify(name, phone)` — saves caller to notify list (deduplicates by principal)
-- Backend: `getFlashNotifySubscribers()` — returns all subscribers (admin only)
-- Backend: `clearFlashNotifySubscribers()` — clears all subscribers after admin notifies
-- HomeTab: When `flashEnabled = false`, show "Flash Deals Coming Soon" card with countdown message and a "Notify Me" button
-- "Notify Me" button: visible only for logged-in users; calls backend to subscribe; shows confirmation toast; disabled after subscription (persist via localStorage flag)
-- Non-logged-in users see "Login to get notified" prompt instead
-- AdminTab: In Flash Deals settings, show subscriber count badge
-- AdminTab: "Notify Users" button — opens a dialog listing all subscribers (name + phone) so admin can contact them, then clears the list after confirming
+- New backend type `RadiusDeliveryConfig` with fields: `radiusKm`, `baseCharge`, `chargePerKm`, `lastUpdated`
+- New backend function `updateDistanceDeliverySettings(radiusKm, baseCharge, chargePerKm)` — replaces old signature
+- New backend query `getRadiusDeliveryConfig()` returning `RadiusDeliveryConfig`
+- Admin Settings section: inputs for Delivery Radius (KM), Base Delivery Charge, Charge per KM + "Update Delivery Settings" button
+- In CartTab: calculate estimated distance from pincode, show delivery distance + charge, block order if distance > radiusKm with "Delivery not available" message
+- deliveryCharge = baseCharge + (distance * chargePerKm)
 
 ### Modify
-- HomeTab flash section: instead of completely hiding when disabled, show "coming soon" card
-- AdminTab flash settings: add subscriber info + notify button below Save button
+- `updateDistanceDeliverySettings` in Motoko: new signature `(radiusKm: Float, baseCharge: Float, chargePerKm: Float)`
+- `backend.d.ts`: update `updateDistanceDeliverySettings` signature + add `RadiusDeliveryConfig` type + `getRadiusDeliveryConfig`
+- `AdminTab.tsx`: replace old distance delivery UI with 3 new fields
+- `CartTab.tsx`: replace pincode-range logic with radius-based logic using `getRadiusDeliveryConfig`
 
 ### Remove
-- Nothing removed
+- Old range-based distance fee logic (range1Extra, range2Extra, range3Extra, range4Extra) from admin UI
+- `estimateDistanceRange` function (replaced by direct distance estimation)
 
 ## Implementation Plan
-1. Update backend main.mo: add subscriber type + 3 new functions
-2. Update backend.did.d.ts: add new types + methods
-3. Update HomeTab: add coming-soon section with Notify Me button
-4. Update AdminTab: add subscriber count + Notify Users button with dialog
+1. Update Motoko backend: add RadiusDeliveryConfig type, state variable, getter, and replace updateDistanceDeliverySettings with new 3-param signature
+2. Update backend.d.ts with new types and function signatures
+3. Update AdminTab.tsx: replace old 4-range UI with radiusKm, baseCharge, chargePerKm inputs
+4. Update CartTab.tsx: fetch radius config, compute estimated distance from pincode, apply formula, show distance + charge, block if out of range

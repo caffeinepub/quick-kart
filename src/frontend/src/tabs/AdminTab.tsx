@@ -512,16 +512,14 @@ export function AdminTab({ onBack }: AdminTabProps) {
   const [qrUploading, setQrUploading] = useState(false);
   const [qrUploadProgress, setQrUploadProgress] = useState(0);
   const [savingPayment, setSavingPayment] = useState(false);
-  // Delivery fee tiers state
-  const DEFAULT_TIERS = [
-    { label: "0-2 km", price: 20 },
-    { label: "2-5 km", price: 40 },
-    { label: "5+ km", price: 60 },
-  ];
-  const [deliveryTiers, setDeliveryTiers] =
-    useState<Array<{ label: string; price: number }>>(DEFAULT_TIERS);
-  const [_loadingDeliveryFee, setLoadingDeliveryFee] = useState(false);
-  const [savingDeliveryFee, setSavingDeliveryFee] = useState(false);
+  // Distance delivery config state
+  const [distanceConfig, setDistanceConfig] = useState({
+    radiusKm: 10,
+    baseCharge: 20,
+    chargePerKm: 5,
+  });
+  const [savingDeliveryConfig, setSavingDeliveryConfig] = useState(false);
+  const [deliveryConfigError, setDeliveryConfigError] = useState("");
   const [flashSubscribers, setFlashSubscribers] = useState<
     Array<{ name: string; phone: string }>
   >([]);
@@ -566,34 +564,24 @@ export function AdminTab({ onBack }: AdminTabProps) {
     }
   }, []);
 
-  const fetchDeliveryFeeSettings = useCallback(async () => {
-    setLoadingDeliveryFee(true);
+  const fetchDeliveryConfig = useCallback(async () => {
     try {
-      const actor = (await createActorWithConfig()) as unknown as BackendFull;
-      const settings = await actor.getDeliveryFeeSettings();
-      setDeliveryTiers([
-        { label: "0-2 km", price: Number(settings.tier1Fee) },
-        { label: "2-5 km", price: Number(settings.tier2Fee) },
-        { label: "5+ km", price: Number(settings.tier3Fee) },
-      ]);
-    } catch (_e) {
-      // keep defaults
-    } finally {
-      setLoadingDeliveryFee(false);
-    }
+      const a = (await createActorWithConfig()) as unknown as BackendFull;
+      const radiusSettings = await a.getRadiusDeliveryConfig();
+      setDistanceConfig({
+        radiusKm: Number(radiusSettings.radiusKm),
+        baseCharge: Number(radiusSettings.baseCharge),
+        chargePerKm: Number(radiusSettings.chargePerKm),
+      });
+    } catch {}
   }, []);
 
   useEffect(() => {
     if (verified && activeSection === "settings") {
       fetchFlashSubscribers();
-      fetchDeliveryFeeSettings();
+      fetchDeliveryConfig();
     }
-  }, [
-    verified,
-    activeSection,
-    fetchFlashSubscribers,
-    fetchDeliveryFeeSettings,
-  ]);
+  }, [verified, activeSection, fetchFlashSubscribers, fetchDeliveryConfig]);
   // eslint-disable-next-line
 
   const handleUpdateStatus = async (
@@ -824,30 +812,29 @@ export function AdminTab({ onBack }: AdminTabProps) {
     setSavingPayment(false);
   };
 
-  const handleSaveDeliveryFee = async () => {
-    setSavingDeliveryFee(true);
+  const handleSaveDeliveryConfig = async () => {
+    setSavingDeliveryConfig(true);
+    setDeliveryConfigError("");
     try {
-      const actor = (await createActorWithConfig()) as unknown as BackendFull;
-      await actor.updateDeliveryFeeSettings(
-        deliveryTiers[0].price,
-        deliveryTiers[1].price,
-        deliveryTiers[2].price,
+      const a = (await createActorWithConfig()) as unknown as BackendFull;
+      await a.updateRadiusDeliveryConfig(
+        distanceConfig.radiusKm,
+        distanceConfig.baseCharge,
+        distanceConfig.chargePerKm,
       );
+      window.dispatchEvent(new Event("distanceDeliveryUpdated"));
       toast.success("Delivery fee updated successfully");
-      window.dispatchEvent(new Event("deliveryTiersUpdated"));
     } catch (e) {
       const msg =
         e instanceof Error
           ? e.message
           : "Failed to save delivery fee settings.";
+      setDeliveryConfigError(msg);
       toast.error(msg, {
-        action: {
-          label: "Retry",
-          onClick: () => handleSaveDeliveryFee(),
-        },
+        action: { label: "Retry", onClick: () => handleSaveDeliveryConfig() },
       });
     } finally {
-      setSavingDeliveryFee(false);
+      setSavingDeliveryConfig(false);
     }
   };
 
@@ -1770,7 +1757,7 @@ export function AdminTab({ onBack }: AdminTabProps) {
             </div>
           </motion.div>
 
-          {/* Delivery Fee Settings Card */}
+          {/* Delivery Settings Card */}
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
@@ -1783,55 +1770,115 @@ export function AdminTab({ onBack }: AdminTabProps) {
                 <Truck size={16} className="text-white" />
               </div>
               <div>
-                <h3 className="font-bold text-base">Delivery Fee Settings</h3>
+                <h3 className="font-bold text-base">Delivery Settings</h3>
                 <p className="text-xs text-muted-foreground">
-                  Set fees per distance range. Applied to all new orders.
+                  Radius-based pricing. Set delivery radius and per-km charge.
                 </p>
               </div>
             </div>
 
             <div className="space-y-3">
-              {deliveryTiers.map((tier, idx) => (
-                <div key={tier.label} className="flex items-center gap-3">
-                  <div className="flex-1">
-                    <Label className="text-xs text-muted-foreground mb-1 block">
-                      {tier.label}
-                    </Label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">
-                        ₹
-                      </span>
-                      <Input
-                        type="number"
-                        min={0}
-                        className="pl-7"
-                        value={tier.price}
-                        onChange={(e) => {
-                          const updated = [...deliveryTiers];
-                          updated[idx] = {
-                            ...updated[idx],
-                            price: Number.parseInt(e.target.value) || 0,
-                          };
-                          setDeliveryTiers(updated);
-                        }}
-                        data-ocid={`admin.settings.delivery_fee_input_${idx}`}
-                      />
-                    </div>
-                  </div>
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1 block">
+                  Delivery Radius (KM)
+                </Label>
+                <Input
+                  type="number"
+                  min={0}
+                  placeholder="e.g. 10"
+                  value={distanceConfig.radiusKm}
+                  onChange={(e) =>
+                    setDistanceConfig((prev) => ({
+                      ...prev,
+                      radiusKm: Number(e.target.value) || 0,
+                    }))
+                  }
+                  data-ocid="admin.settings.delivery_radius.input"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Orders beyond this radius will show "Delivery not available"
+                </p>
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1 block">
+                  Base Delivery Charge (₹)
+                </Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">
+                    ₹
+                  </span>
+                  <Input
+                    type="number"
+                    min={0}
+                    className="pl-7"
+                    placeholder="e.g. 20"
+                    value={distanceConfig.baseCharge}
+                    onChange={(e) =>
+                      setDistanceConfig((prev) => ({
+                        ...prev,
+                        baseCharge: Number(e.target.value) || 0,
+                      }))
+                    }
+                    data-ocid="admin.settings.delivery_base_charge.input"
+                  />
                 </div>
-              ))}
+              </div>
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1 block">
+                  Charge per KM (₹)
+                </Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">
+                    ₹
+                  </span>
+                  <Input
+                    type="number"
+                    min={0}
+                    className="pl-7"
+                    placeholder="e.g. 5"
+                    value={distanceConfig.chargePerKm}
+                    onChange={(e) =>
+                      setDistanceConfig((prev) => ({
+                        ...prev,
+                        chargePerKm: Number(e.target.value) || 0,
+                      }))
+                    }
+                    data-ocid="admin.settings.delivery_charge_per_km.input"
+                  />
+                </div>
+              </div>
+              <div className="bg-muted rounded-lg px-4 py-2 text-xs font-medium text-center">
+                <p className="text-muted-foreground text-xs mb-1">Formula:</p>
+                <p className="text-sm font-bold">
+                  Delivery Charge = ₹{distanceConfig.baseCharge} + (distance × ₹
+                  {distanceConfig.chargePerKm}/km)
+                </p>
+              </div>
             </div>
+
+            {deliveryConfigError && (
+              <div className="text-red-500 text-xs flex items-center justify-between gap-2">
+                <span>{deliveryConfigError}</span>
+                <button
+                  type="button"
+                  className="underline font-semibold"
+                  onClick={handleSaveDeliveryConfig}
+                >
+                  Retry
+                </button>
+              </div>
+            )}
 
             <Button
               className="orange-gradient text-white font-bold w-full"
-              onClick={handleSaveDeliveryFee}
-              disabled={savingDeliveryFee}
+              onClick={handleSaveDeliveryConfig}
+              disabled={savingDeliveryConfig}
               data-ocid="admin.settings.save_delivery_fee_button"
             >
-              {savingDeliveryFee ? (
+              {savingDeliveryConfig ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : null}
-              Save Delivery Fee Settings
+              Update Delivery Settings
             </Button>
           </motion.div>
 

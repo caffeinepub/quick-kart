@@ -5,7 +5,6 @@ import {
   Clock,
   Copy,
   Loader2,
-  MapPin,
   Minus,
   Plus,
   Tag,
@@ -28,12 +27,6 @@ const COUPONS: Record<string, number> = {
   FLASH50: 0.5,
 };
 
-const DEFAULT_DELIVERY_TIERS = [
-  { label: "0-2 km", price: 20, desc: "Up to 2 km" },
-  { label: "2-5 km", price: 40, desc: "Up to 5 km" },
-  { label: "5+ km", price: 60, desc: "5 km and above" },
-];
-
 interface AddressFormData {
   flat: string;
   building: string;
@@ -45,14 +38,33 @@ interface AddressFormData {
 
 type CheckoutStep = "cart" | "payment" | "upi" | "success-cod" | "success-upi";
 
+function estimateDistanceKm(pincode: string): number {
+  const BASE_PINCODE = 224201; // Atraulia, UP
+  const code = Number.parseInt(pincode, 10);
+  if (Number.isNaN(code) || pincode.length < 6) return 0;
+  const diff = Math.abs(code - BASE_PINCODE);
+  // Rough estimate: each pincode unit ~ 0.1 km (local approximation)
+  if (diff === 0) return 0.5;
+  if (diff <= 5) return 1.5;
+  if (diff <= 20) return 3;
+  if (diff <= 100) return 6;
+  if (diff <= 300) return 10;
+  return 15;
+}
+
 export function CartTab({ onLoginRequired }: { onLoginRequired: () => void }) {
   const { items, updateQuantity, removeFromCart, clearCart } = useCartStore();
   const { isLoggedIn, user, addOrderId } = useAuthStore();
   const [couponInput, setCouponInput] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState("");
-  const [selectedDistanceIdx, setSelectedDistanceIdx] = useState(0);
-  const [distanceTiers, setDistanceTiers] = useState(DEFAULT_DELIVERY_TIERS);
-  const [_loadingFees, setLoadingFees] = useState(true);
+  const [radiusConfig, setRadiusConfig] = useState({
+    radiusKm: 10,
+    baseCharge: 20,
+    chargePerKm: 5,
+  });
+  const [deliveryFee, setDeliveryFee] = useState(20);
+  const [estimatedDistanceKm, setEstimatedDistanceKm] = useState(0);
+  const [deliveryAvailable, setDeliveryAvailable] = useState(true);
   const [address, setAddress] = useState<AddressFormData>({
     flat: "",
     building: "",
@@ -77,41 +89,41 @@ export function CartTab({ onLoginRequired }: { onLoginRequired: () => void }) {
   );
 
   useEffect(() => {
-    const fetchFees = async () => {
+    const fetchRadiusConfig = async () => {
       try {
         const backend =
           (await createActorWithConfig()) as unknown as BackendFull;
-        const settings = await backend.getDeliveryFeeSettings();
-        const tiers = [
-          {
-            label: "0-2 km",
-            price: Number(settings.tier1Fee),
-            desc: "Up to 2 km",
-          },
-          {
-            label: "2-5 km",
-            price: Number(settings.tier2Fee),
-            desc: "Up to 5 km",
-          },
-          {
-            label: "5+ km",
-            price: Number(settings.tier3Fee),
-            desc: "5 km and above",
-          },
-        ];
-        setDistanceTiers(tiers);
+        const s = await backend.getRadiusDeliveryConfig();
+        setRadiusConfig({
+          radiusKm: Number(s.radiusKm),
+          baseCharge: Number(s.baseCharge),
+          chargePerKm: Number(s.chargePerKm),
+        });
       } catch {
-        // backend call failed, keep default tiers
-      } finally {
-        setLoadingFees(false);
+        // keep defaults
       }
     };
-    fetchFees();
-    const onTiersUpdated = () => fetchFees();
-    window.addEventListener("deliveryTiersUpdated", onTiersUpdated);
+    fetchRadiusConfig();
+    window.addEventListener("distanceDeliveryUpdated", fetchRadiusConfig);
     return () =>
-      window.removeEventListener("deliveryTiersUpdated", onTiersUpdated);
+      window.removeEventListener("distanceDeliveryUpdated", fetchRadiusConfig);
   }, []);
+
+  // Recalculate delivery fee when pincode or radius config changes
+  useEffect(() => {
+    const pincode = savedAddress?.pincode || address.pincode || "";
+    const distKm = estimateDistanceKm(pincode);
+    setEstimatedDistanceKm(distKm);
+    if (distKm > radiusConfig.radiusKm) {
+      setDeliveryAvailable(false);
+      setDeliveryFee(0);
+    } else {
+      setDeliveryAvailable(true);
+      const charge =
+        radiusConfig.baseCharge + distKm * radiusConfig.chargePerKm;
+      setDeliveryFee(Math.round(charge));
+    }
+  }, [address.pincode, savedAddress?.pincode, radiusConfig]);
 
   useEffect(() => {
     const syncSettings = () => {
@@ -136,7 +148,6 @@ export function CartTab({ onLoginRequired }: { onLoginRequired: () => void }) {
   }, [user?.address]);
 
   const subtotal = items.reduce((s, i) => s + i.product.price * i.quantity, 0);
-  const deliveryFee = distanceTiers[selectedDistanceIdx].price;
   const platformFee = 5;
   const gst = Math.round(subtotal * 0.05);
   const discount = appliedCoupon
@@ -675,42 +686,6 @@ export function CartTab({ onLoginRequired }: { onLoginRequired: () => void }) {
           )}
         </div>
 
-        {/* Distance Selector */}
-        <div
-          className="bg-card rounded-xl border border-border p-4"
-          data-ocid="cart.distance.panel"
-        >
-          <div className="flex items-center gap-2 mb-3">
-            <MapPin size={14} className="text-orange" />
-            <span className="text-sm font-bold">📍 Delivery Distance</span>
-          </div>
-          <div className="flex gap-2 flex-wrap">
-            {distanceTiers.map((tier, idx) => (
-              <button
-                type="button"
-                key={tier.label}
-                onClick={() => setSelectedDistanceIdx(idx)}
-                className={`flex-1 min-w-fit px-3 py-2 rounded-full text-sm font-bold border-2 transition-all ${
-                  selectedDistanceIdx === idx
-                    ? "orange-gradient text-white border-transparent shadow-orange"
-                    : "bg-muted text-foreground border-border"
-                }`}
-                data-ocid="cart.distance.toggle"
-              >
-                <div>{tier.label}</div>
-                <div
-                  className={`text-xs font-semibold ${selectedDistanceIdx === idx ? "text-white/80" : "text-muted-foreground"}`}
-                >
-                  ₹{tier.price}
-                </div>
-              </button>
-            ))}
-          </div>
-          <p className="text-xs text-muted-foreground mt-2">
-            🛯 Faster delivery for longer distances may take up to 30 min
-          </p>
-        </div>
-
         {/* Price Breakdown */}
         <div
           className="bg-card rounded-xl border border-border p-4 space-y-2"
@@ -721,14 +696,29 @@ export function CartTab({ onLoginRequired }: { onLoginRequired: () => void }) {
             <span className="text-muted-foreground">Subtotal</span>
             <span className="font-medium">₹{subtotal}</span>
           </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">
-              Delivery Fee
-              <span className="ml-1 text-xs text-orange">
-                ({distanceTiers[selectedDistanceIdx].label})
+          {!deliveryAvailable ? (
+            <div className="flex justify-between text-sm text-red-500 font-semibold">
+              <span>Delivery Charge</span>
+              <span>Not available in your area</span>
+            </div>
+          ) : (
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Delivery Charge</span>
+              <span className="font-medium">
+                ₹{deliveryFee}{" "}
+                <span className="text-xs text-muted-foreground">
+                  (based on distance)
+                </span>
               </span>
+            </div>
+          )}
+          <div className="flex justify-between text-xs text-muted-foreground pl-2">
+            <span>
+              📍 Estimated distance: {estimatedDistanceKm.toFixed(1)} km
+              {deliveryAvailable
+                ? ` · ₹${radiusConfig.baseCharge} + ${estimatedDistanceKm.toFixed(1)} km × ₹${radiusConfig.chargePerKm}/km`
+                : ` (beyond ${radiusConfig.radiusKm} km radius)`}
             </span>
-            <span className="font-medium">₹{deliveryFee}</span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-muted-foreground">Platform Fee</span>
@@ -875,11 +865,23 @@ export function CartTab({ onLoginRequired }: { onLoginRequired: () => void }) {
           </motion.div>
         )}
 
+        {/* Delivery not available warning */}
+        {deliveryAvailable === false && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-center text-red-600 text-sm font-semibold mb-3">
+            🚫 Delivery not available to your location.
+            <br />
+            <span className="text-xs font-normal">
+              Your area is beyond our {radiusConfig.radiusKm} km delivery
+              radius.
+            </span>
+          </div>
+        )}
         {/* Proceed to Pay */}
         <motion.button
           whileTap={{ scale: 0.98 }}
           onClick={handleProceedToPay}
-          className="w-full py-4 orange-gradient rounded-2xl text-white font-black text-base shadow-orange flex items-center justify-center gap-2 mb-6"
+          disabled={!deliveryAvailable}
+          className="w-full py-4 orange-gradient rounded-2xl text-white font-black text-base shadow-orange flex items-center justify-center gap-2 mb-6 disabled:opacity-50 disabled:cursor-not-allowed"
           data-ocid="cart.submit_button"
         >
           {!isLoggedIn ? (
@@ -887,6 +889,8 @@ export function CartTab({ onLoginRequired }: { onLoginRequired: () => void }) {
               <span>🔐 Login to Proceed</span>
               <ChevronRight size={18} strokeWidth={2.5} />
             </>
+          ) : !deliveryAvailable ? (
+            <span>Delivery Not Available</span>
           ) : (
             <>
               <span>Proceed to Pay ₹{total}</span>

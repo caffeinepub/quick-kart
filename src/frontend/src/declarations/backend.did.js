@@ -126,9 +126,9 @@ export const FlashNotifySubscriber = IDL.Record({
   'subscribedAt' : IDL.Int,
 });
 export const DeliveryFeeSettings = IDL.Record({
-  'tier1Fee' : IDL.Float64,
-  'tier2Fee' : IDL.Float64,
-  'tier3Fee' : IDL.Float64,
+  'range1' : IDL.Float64,
+  'range2' : IDL.Float64,
+  'range3' : IDL.Float64,
   'lastUpdated' : IDL.Int,
 });
 
@@ -221,9 +221,14 @@ export const idlFactory = ({ IDL }) => {
     'principal' : IDL.Principal, 'name' : IDL.Text, 'phone' : IDL.Text, 'subscribedAt' : IDL.Int,
   });
   const DeliveryFeeSettings = IDL.Record({
-    'tier1Fee' : IDL.Float64, 'tier2Fee' : IDL.Float64, 'tier3Fee' : IDL.Float64, 'lastUpdated' : IDL.Int,
+    'range1' : IDL.Float64, 'range2' : IDL.Float64, 'range3' : IDL.Float64, 'lastUpdated' : IDL.Int,
   });
 
+  const DistanceDeliverySettings = IDL.Record({
+    'baseDeliveryFee' : IDL.Float64, 'range1Extra' : IDL.Float64,
+    'range2Extra' : IDL.Float64, 'range3Extra' : IDL.Float64,
+    'range4Extra' : IDL.Float64, 'lastUpdated' : IDL.Int,
+  });
   return IDL.Service({
     '_caffeineStorageBlobIsLive' : IDL.Func([IDL.Vec(IDL.Nat8)], [IDL.Bool], ['query']),
     '_caffeineStorageBlobsToDelete' : IDL.Func([], [IDL.Vec(IDL.Vec(IDL.Nat8))], ['query']),
@@ -258,6 +263,9 @@ export const idlFactory = ({ IDL }) => {
     'clearFlashNotifySubscribers' : IDL.Func([], [], []),
     'getDeliveryFeeSettings' : IDL.Func([], [DeliveryFeeSettings], ['query']),
     'updateDeliveryFeeSettings' : IDL.Func([IDL.Float64, IDL.Float64, IDL.Float64], [], []),
+    'getDistanceDeliverySettings' : IDL.Func([], [DistanceDeliverySettings], ['query']),
+    'updateDistanceDeliverySettings' : IDL.Func([IDL.Float64, IDL.Float64, IDL.Float64, IDL.Float64, IDL.Float64], [], []),
+
   });
 };
 

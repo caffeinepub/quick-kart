@@ -109,9 +109,17 @@ export interface FlashNotifySubscriber {
   'subscribedAt' : bigint,
 }
 export interface DeliveryFeeSettings {
-  'tier1Fee' : number,
-  'tier2Fee' : number,
-  'tier3Fee' : number,
+  'range1' : number,
+  'range2' : number,
+  'range3' : number,
+  'lastUpdated' : bigint,
+}
+export interface DistanceDeliverySettings {
+  'baseDeliveryFee' : number,
+  'range1Extra' : number,
+  'range2Extra' : number,
+  'range3Extra' : number,
+  'range4Extra' : number,
   'lastUpdated' : bigint,
 }
 export interface _SERVICE {
@@ -160,6 +168,9 @@ export interface _SERVICE {
   'clearFlashNotifySubscribers' : ActorMethod<[], undefined>,
   'getDeliveryFeeSettings' : ActorMethod<[], DeliveryFeeSettings>,
   'updateDeliveryFeeSettings' : ActorMethod<[number, number, number], undefined>,
+  'getDistanceDeliverySettings' : ActorMethod<[], DistanceDeliverySettings>,
+  'updateDistanceDeliverySettings' : ActorMethod<[number, number, number, number, number], undefined>,
+
 }
 export declare const idlService: IDL.ServiceClass;
 export declare const idlInitArgs: IDL.Type[];

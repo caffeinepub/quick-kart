@@ -100,9 +100,28 @@ export interface NewOrder {
     customerName: string;
 }
 export interface DeliveryFeeSettings {
-    tier1Fee: number;
-    tier2Fee: number;
-    tier3Fee: number;
+    range1: number;
+    range2: number;
+    range3: number;
+    lastUpdated: bigint;
+}
+export interface DeliveryConfig {
+    baseDeliveryFee: number;
+    extraCharge: number;
+    lastUpdated: bigint;
+}
+export interface DistanceDeliverySettings {
+    baseDeliveryFee: number;
+    range1Extra: number;
+    range2Extra: number;
+    range3Extra: number;
+    range4Extra: number;
+    lastUpdated: bigint;
+}
+export interface RadiusDeliveryConfig {
+    radiusKm: number;
+    baseCharge: number;
+    chargePerKm: number;
     lastUpdated: bigint;
 }
 export interface FlashNotifySubscriber {
@@ -144,7 +163,13 @@ export interface backendInterface {
     confirmPayment(orderId: bigint): Promise<boolean>;
     updateOrderStatus(orderId: bigint, status: OrderStatus): Promise<boolean>;
     getDeliveryFeeSettings(): Promise<DeliveryFeeSettings>;
-    updateDeliveryFeeSettings(tier1Fee: number, tier2Fee: number, tier3Fee: number): Promise<void>;
+    updateDeliveryFeeSettings(range1: number, range2: number, range3: number): Promise<void>;
+    getDeliveryConfig(): Promise<DeliveryConfig>;
+    updateDeliveryConfig(baseDeliveryFee: number, extraCharge: number): Promise<void>;
+    getDistanceDeliverySettings(): Promise<DistanceDeliverySettings>;
+    updateDistanceDeliverySettings(baseDeliveryFee: number, range1Extra: number, range2Extra: number, range3Extra: number, range4Extra: number): Promise<void>;
+    getRadiusDeliveryConfig(): Promise<RadiusDeliveryConfig>;
+    updateRadiusDeliveryConfig(radiusKm: number, baseCharge: number, chargePerKm: number): Promise<void>;
     subscribeFlashNotify(name: string, phone: string): Promise<boolean>;
     getFlashNotifySubscribers(): Promise<Array<FlashNotifySubscriber>>;
     clearFlashNotifySubscribers(): Promise<void>;
