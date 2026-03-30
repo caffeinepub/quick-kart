@@ -130,6 +130,17 @@ export interface FlashNotifySubscriber {
     phone: string;
     subscribedAt: bigint;
 }
+export interface DeliveryTiers {
+    tier1Fee: number;
+    tier2Fee: number;
+    tier3Fee: number;
+    tier4Fee: number;
+    tier1MaxKm: number;
+    tier2MaxKm: number;
+    tier3MaxKm: number;
+    defaultFee: number;
+    lastUpdated: bigint;
+}
 export enum ProductCategory {
     food = "food",
     coldDrinks = "coldDrinks",
@@ -170,6 +181,8 @@ export interface backendInterface {
     updateDistanceDeliverySettings(baseDeliveryFee: number, range1Extra: number, range2Extra: number, range3Extra: number, range4Extra: number): Promise<void>;
     getRadiusDeliveryConfig(): Promise<RadiusDeliveryConfig>;
     updateRadiusDeliveryConfig(radiusKm: number, baseCharge: number, chargePerKm: number): Promise<void>;
+    getDeliveryTiers(): Promise<DeliveryTiers>;
+    updateDeliveryTiers(tier1Fee: number, tier2Fee: number, tier3Fee: number, tier4Fee: number, tier1MaxKm: number, tier2MaxKm: number, tier3MaxKm: number, defaultFee: number): Promise<void>;
     subscribeFlashNotify(name: string, phone: string): Promise<boolean>;
     getFlashNotifySubscribers(): Promise<Array<FlashNotifySubscriber>>;
     clearFlashNotifySubscribers(): Promise<void>;

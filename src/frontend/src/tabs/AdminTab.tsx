@@ -512,11 +512,16 @@ export function AdminTab({ onBack }: AdminTabProps) {
   const [qrUploading, setQrUploading] = useState(false);
   const [qrUploadProgress, setQrUploadProgress] = useState(0);
   const [savingPayment, setSavingPayment] = useState(false);
-  // Distance delivery config state
-  const [distanceConfig, setDistanceConfig] = useState({
-    radiusKm: 10,
-    baseCharge: 20,
-    chargePerKm: 5,
+  // Delivery tiers config state
+  const [deliveryTiers, setDeliveryTiers] = useState({
+    tier1Fee: 4,
+    tier2Fee: 40,
+    tier3Fee: 60,
+    tier4Fee: 80,
+    tier1MaxKm: 2,
+    tier2MaxKm: 5,
+    tier3MaxKm: 8,
+    defaultFee: 40,
   });
   const [savingDeliveryConfig, setSavingDeliveryConfig] = useState(false);
   const [deliveryConfigError, setDeliveryConfigError] = useState("");
@@ -567,11 +572,16 @@ export function AdminTab({ onBack }: AdminTabProps) {
   const fetchDeliveryConfig = useCallback(async () => {
     try {
       const a = (await createActorWithConfig()) as unknown as BackendFull;
-      const radiusSettings = await a.getRadiusDeliveryConfig();
-      setDistanceConfig({
-        radiusKm: Number(radiusSettings.radiusKm),
-        baseCharge: Number(radiusSettings.baseCharge),
-        chargePerKm: Number(radiusSettings.chargePerKm),
+      const tiers = await a.getDeliveryTiers();
+      setDeliveryTiers({
+        tier1Fee: Number(tiers.tier1Fee),
+        tier2Fee: Number(tiers.tier2Fee),
+        tier3Fee: Number(tiers.tier3Fee),
+        tier4Fee: Number(tiers.tier4Fee),
+        tier1MaxKm: Number(tiers.tier1MaxKm),
+        tier2MaxKm: Number(tiers.tier2MaxKm),
+        tier3MaxKm: Number(tiers.tier3MaxKm),
+        defaultFee: Number(tiers.defaultFee),
       });
     } catch {}
   }, []);
@@ -817,13 +827,18 @@ export function AdminTab({ onBack }: AdminTabProps) {
     setDeliveryConfigError("");
     try {
       const a = (await createActorWithConfig()) as unknown as BackendFull;
-      await a.updateRadiusDeliveryConfig(
-        distanceConfig.radiusKm,
-        distanceConfig.baseCharge,
-        distanceConfig.chargePerKm,
+      await a.updateDeliveryTiers(
+        deliveryTiers.tier1Fee,
+        deliveryTiers.tier2Fee,
+        deliveryTiers.tier3Fee,
+        deliveryTiers.tier4Fee,
+        deliveryTiers.tier1MaxKm,
+        deliveryTiers.tier2MaxKm,
+        deliveryTiers.tier3MaxKm,
+        deliveryTiers.defaultFee,
       );
-      window.dispatchEvent(new Event("distanceDeliveryUpdated"));
-      toast.success("Delivery fee updated successfully");
+      window.dispatchEvent(new Event("deliveryTiersUpdated"));
+      toast.success("Delivery fee settings saved successfully");
     } catch (e) {
       const msg =
         e instanceof Error
@@ -1770,89 +1785,123 @@ export function AdminTab({ onBack }: AdminTabProps) {
                 <Truck size={16} className="text-white" />
               </div>
               <div>
-                <h3 className="font-bold text-base">Delivery Settings</h3>
+                <h3 className="font-bold text-base">
+                  Delivery Fee Settings (Distance-Based)
+                </h3>
                 <p className="text-xs text-muted-foreground">
-                  Radius-based pricing. Set delivery radius and per-km charge.
+                  Set fees for each distance range from Bhavnathpur Market
                 </p>
               </div>
             </div>
 
-            <div className="space-y-3">
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1 block">
-                  Delivery Radius (KM)
-                </Label>
+            {/* 4 Tier Fee Rows */}
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                Delivery Fees per Range
+              </p>
+              {[
+                {
+                  label: `0 – ${deliveryTiers.tier1MaxKm} km`,
+                  key: "tier1Fee" as const,
+                },
+                {
+                  label: `${deliveryTiers.tier1MaxKm} – ${deliveryTiers.tier2MaxKm} km`,
+                  key: "tier2Fee" as const,
+                },
+                {
+                  label: `${deliveryTiers.tier2MaxKm} – ${deliveryTiers.tier3MaxKm} km`,
+                  key: "tier3Fee" as const,
+                },
+                {
+                  label: `Above ${deliveryTiers.tier3MaxKm} km`,
+                  key: "tier4Fee" as const,
+                },
+              ].map(({ label, key }) => (
+                <div
+                  key={key}
+                  className="flex items-center gap-3 bg-muted/50 rounded-xl px-3 py-2"
+                >
+                  <span className="flex-1 text-sm font-medium text-foreground">
+                    {label}
+                  </span>
+                  <div className="relative w-28">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">
+                      ₹
+                    </span>
+                    <Input
+                      type="number"
+                      min={0}
+                      className="pl-7 h-9 text-sm"
+                      value={deliveryTiers[key]}
+                      onChange={(e) =>
+                        setDeliveryTiers((prev) => ({
+                          ...prev,
+                          [key]: Number(e.target.value) || 0,
+                        }))
+                      }
+                      data-ocid={`admin.settings.${key}.input`}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Distance Boundaries */}
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                Distance Boundaries (km)
+              </p>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { label: "Tier 1 max", key: "tier1MaxKm" as const },
+                  { label: "Tier 2 max", key: "tier2MaxKm" as const },
+                  { label: "Tier 3 max", key: "tier3MaxKm" as const },
+                ].map(({ label, key }) => (
+                  <div key={key}>
+                    <Label className="text-xs text-muted-foreground mb-1 block">
+                      {label}
+                    </Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      placeholder="km"
+                      value={deliveryTiers[key]}
+                      onChange={(e) =>
+                        setDeliveryTiers((prev) => ({
+                          ...prev,
+                          [key]: Number(e.target.value) || 0,
+                        }))
+                      }
+                      data-ocid={`admin.settings.${key}.input`}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Default Fee */}
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1 block">
+                Default Fee (when distance can&apos;t be calculated)
+              </Label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">
+                  ₹
+                </span>
                 <Input
                   type="number"
                   min={0}
-                  placeholder="e.g. 10"
-                  value={distanceConfig.radiusKm}
+                  className="pl-7"
+                  placeholder="e.g. 40"
+                  value={deliveryTiers.defaultFee}
                   onChange={(e) =>
-                    setDistanceConfig((prev) => ({
+                    setDeliveryTiers((prev) => ({
                       ...prev,
-                      radiusKm: Number(e.target.value) || 0,
+                      defaultFee: Number(e.target.value) || 0,
                     }))
                   }
-                  data-ocid="admin.settings.delivery_radius.input"
+                  data-ocid="admin.settings.delivery_default_fee.input"
                 />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Orders beyond this radius will show "Delivery not available"
-                </p>
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1 block">
-                  Base Delivery Charge (₹)
-                </Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">
-                    ₹
-                  </span>
-                  <Input
-                    type="number"
-                    min={0}
-                    className="pl-7"
-                    placeholder="e.g. 20"
-                    value={distanceConfig.baseCharge}
-                    onChange={(e) =>
-                      setDistanceConfig((prev) => ({
-                        ...prev,
-                        baseCharge: Number(e.target.value) || 0,
-                      }))
-                    }
-                    data-ocid="admin.settings.delivery_base_charge.input"
-                  />
-                </div>
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1 block">
-                  Charge per KM (₹)
-                </Label>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">
-                    ₹
-                  </span>
-                  <Input
-                    type="number"
-                    min={0}
-                    className="pl-7"
-                    placeholder="e.g. 5"
-                    value={distanceConfig.chargePerKm}
-                    onChange={(e) =>
-                      setDistanceConfig((prev) => ({
-                        ...prev,
-                        chargePerKm: Number(e.target.value) || 0,
-                      }))
-                    }
-                    data-ocid="admin.settings.delivery_charge_per_km.input"
-                  />
-                </div>
-              </div>
-              <div className="bg-muted rounded-lg px-4 py-2 text-xs font-medium text-center">
-                <p className="text-muted-foreground text-xs mb-1">Formula:</p>
-                <p className="text-sm font-bold">
-                  Delivery Charge = ₹{distanceConfig.baseCharge} + (distance × ₹
-                  {distanceConfig.chargePerKm}/km)
-                </p>
               </div>
             </div>
 
@@ -1878,7 +1927,7 @@ export function AdminTab({ onBack }: AdminTabProps) {
               {savingDeliveryConfig ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : null}
-              Update Delivery Settings
+              Save Delivery Settings
             </Button>
           </motion.div>
 

@@ -133,6 +133,19 @@ actor {
 
 
 
+
+  // Tiered distance-based delivery fee (4 tiers, admin-configurable)
+  public type DeliveryTiers = {
+    tier1Fee : Float;     // 0 - tier1MaxKm
+    tier2Fee : Float;     // tier1MaxKm - tier2MaxKm
+    tier3Fee : Float;     // tier2MaxKm - tier3MaxKm
+    tier4Fee : Float;     // above tier3MaxKm
+    tier1MaxKm : Float;   // default 2
+    tier2MaxKm : Float;   // default 5
+    tier3MaxKm : Float;   // default 8
+    defaultFee : Float;   // fallback when distance unknown
+    lastUpdated : Int;
+  };
   var nextId = 1;
   let products = Map.empty<Nat, Product>();
 
@@ -175,6 +188,19 @@ actor {
     lastUpdated = 0;
   };
 
+
+  // Tiered delivery fee state
+  var deliveryTiers : DeliveryTiers = {
+    tier1Fee = 4.0;
+    tier2Fee = 40.0;
+    tier3Fee = 60.0;
+    tier4Fee = 80.0;
+    tier1MaxKm = 2.0;
+    tier2MaxKm = 5.0;
+    tier3MaxKm = 8.0;
+    defaultFee = 40.0;
+    lastUpdated = 0;
+  };
 
 
 
@@ -429,6 +455,28 @@ actor {
       radiusKm;
       baseCharge;
       chargePerKm;
+      lastUpdated = Time.now();
+    };
+  };
+
+  // Tiered delivery fee functions
+  public query func getDeliveryTiers() : async DeliveryTiers {
+    deliveryTiers;
+  };
+
+  public shared func updateDeliveryTiers(
+    tier1Fee : Float, tier2Fee : Float, tier3Fee : Float, tier4Fee : Float,
+    tier1MaxKm : Float, tier2MaxKm : Float, tier3MaxKm : Float, defaultFee : Float
+  ) : async () {
+    deliveryTiers := {
+      tier1Fee;
+      tier2Fee;
+      tier3Fee;
+      tier4Fee;
+      tier1MaxKm;
+      tier2MaxKm;
+      tier3MaxKm;
+      defaultFee;
       lastUpdated = Time.now();
     };
   };
