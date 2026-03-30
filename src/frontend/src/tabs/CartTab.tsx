@@ -13,7 +13,7 @@ import {
   Zap,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import type {
   backendInterface as BackendFull,
@@ -31,9 +31,6 @@ const COUPONS: Record<string, number> = {
   FLASH50: 0.5,
 };
 
-const STORE_LAT = 27.2435;
-const STORE_LNG = 82.9674;
-
 interface AddressFormData {
   flat: string;
   building: string;
@@ -43,43 +40,35 @@ interface AddressFormData {
   type: string;
 }
 
+type DistanceRange = "0-2" | "2-5" | "5-8" | "8+" | "";
 type CheckoutStep = "cart" | "payment" | "upi" | "success-cod" | "success-upi";
 
-function haversineKm(
-  lat1: number,
-  lng1: number,
-  lat2: number,
-  lng2: number,
-): number {
-  const R = 6371;
-  const dLat = ((lat2 - lat1) * Math.PI) / 180;
-  const dLng = ((lng2 - lng1) * Math.PI) / 180;
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos((lat1 * Math.PI) / 180) *
-      Math.cos((lat2 * Math.PI) / 180) *
-      Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-function getTierFee(distKm: number, tiers: DeliveryTiers): number {
-  if (distKm <= tiers.tier1MaxKm) return tiers.tier1Fee;
-  if (distKm <= tiers.tier2MaxKm) return tiers.tier2Fee;
-  if (distKm <= tiers.tier3MaxKm) return tiers.tier3Fee;
-  return tiers.tier4Fee;
-}
-
 const DEFAULT_TIERS: DeliveryTiers = {
-  tier1Fee: 4,
-  tier2Fee: 40,
-  tier3Fee: 60,
-  tier4Fee: 80,
+  tier1Fee: 5,
+  tier2Fee: 20,
+  tier3Fee: 40,
+  tier4Fee: 70,
   tier1MaxKm: 2,
   tier2MaxKm: 5,
   tier3MaxKm: 8,
-  defaultFee: 40,
+  defaultFee: 20,
   lastUpdated: 0n,
 };
+
+function getFeeForRange(range: DistanceRange, tiers: DeliveryTiers): number {
+  switch (range) {
+    case "0-2":
+      return tiers.tier1Fee;
+    case "2-5":
+      return tiers.tier2Fee;
+    case "5-8":
+      return tiers.tier3Fee;
+    case "8+":
+      return tiers.tier4Fee;
+    default:
+      return 0;
+  }
+}
 
 export function CartTab({ onLoginRequired }: { onLoginRequired: () => void }) {
   const { items, updateQuantity, removeFromCart, clearCart } = useCartStore();
@@ -88,12 +77,8 @@ export function CartTab({ onLoginRequired }: { onLoginRequired: () => void }) {
   const [appliedCoupon, setAppliedCoupon] = useState("");
   const [deliveryTiers, setDeliveryTiers] =
     useState<DeliveryTiers>(DEFAULT_TIERS);
-  const [deliveryFee, setDeliveryFee] = useState(40);
-  const [estimatedDistanceKm, setEstimatedDistanceKm] = useState<number | null>(
-    null,
-  );
-  const [geocodingFailed, setGeocodingFailed] = useState(false);
-  const [geocodingLoading, setGeocodingLoading] = useState(false);
+  const [selectedDistanceRange, setSelectedDistanceRange] =
+    useState<DistanceRange>("");
   const [address, setAddress] = useState<AddressFormData>({
     flat: "",
     building: "",
@@ -108,7 +93,6 @@ export function CartTab({ onLoginRequired }: { onLoginRequired: () => void }) {
   const [step, setStep] = useState<CheckoutStep>("cart");
   const [placingOrder, setPlacingOrder] = useState(false);
   const [orderId, setOrderId] = useState<number | null>(null);
-  const geocodeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Payment settings from admin
   const [upiId, setUpiId] = useState(
@@ -135,66 +119,6 @@ export function CartTab({ onLoginRequired }: { onLoginRequired: () => void }) {
     return () => window.removeEventListener("deliveryTiersUpdated", fetchTiers);
   }, []);
 
-  // Geocode address and calculate delivery fee (debounced)
-  useEffect(() => {
-    const activeAddress = savedAddress || address;
-    const query = [
-      activeAddress.flat,
-      activeAddress.building,
-      activeAddress.area,
-      activeAddress.pincode,
-      "India",
-    ]
-      .filter(Boolean)
-      .join(", ");
-
-    if (!query.replace(/,\s*/g, "").trim() || query === "India") {
-      setDeliveryFee(deliveryTiers.defaultFee);
-      setEstimatedDistanceKm(null);
-      setGeocodingFailed(false);
-      return;
-    }
-
-    if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current);
-    geocodeTimerRef.current = setTimeout(async () => {
-      setGeocodingLoading(true);
-      try {
-        const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`;
-        const res = await fetch(url, {
-          headers: { "Accept-Language": "en" },
-        });
-        const data = await res.json();
-        if (data && data.length > 0) {
-          const { lat, lon } = data[0];
-          const dist = haversineKm(
-            STORE_LAT,
-            STORE_LNG,
-            Number(lat),
-            Number(lon),
-          );
-          setEstimatedDistanceKm(dist);
-          setGeocodingFailed(false);
-          setDeliveryFee(getTierFee(dist, deliveryTiers));
-        } else {
-          setGeocodingFailed(true);
-          setDeliveryFee(deliveryTiers.defaultFee);
-          setEstimatedDistanceKm(null);
-        }
-      } catch {
-        setGeocodingFailed(true);
-        setDeliveryFee(deliveryTiers.defaultFee);
-        setEstimatedDistanceKm(null);
-      } finally {
-        setGeocodingLoading(false);
-      }
-    }, 1000);
-
-    return () => {
-      if (geocodeTimerRef.current) clearTimeout(geocodeTimerRef.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [address, savedAddress, deliveryTiers]);
-
   useEffect(() => {
     const syncSettings = () => {
       setUpiId(localStorage.getItem("paymentUpiId") || "9161240484@axl");
@@ -217,6 +141,7 @@ export function CartTab({ onLoginRequired }: { onLoginRequired: () => void }) {
     }
   }, [user?.address]);
 
+  const deliveryFee = getFeeForRange(selectedDistanceRange, deliveryTiers);
   const subtotal = items.reduce((s, i) => s + i.product.price * i.quantity, 0);
   const platformFee = 5;
   const gst = Math.round(subtotal * 0.05);
@@ -256,6 +181,10 @@ export function CartTab({ onLoginRequired }: { onLoginRequired: () => void }) {
       toast.error("Please save a delivery address first");
       return;
     }
+    if (!selectedDistanceRange) {
+      toast.error("Please select a delivery distance range");
+      return;
+    }
     setStep("payment");
   };
 
@@ -272,7 +201,7 @@ export function CartTab({ onLoginRequired }: { onLoginRequired: () => void }) {
           ...savedAddress,
           phone: user?.phone ?? "",
           deliveryFee,
-          deliveryDistanceKm: estimatedDistanceKm,
+          deliveryDistanceRange: selectedDistanceRange,
         }),
         customerName: user?.name ?? "Guest",
       });
@@ -305,7 +234,7 @@ export function CartTab({ onLoginRequired }: { onLoginRequired: () => void }) {
           ...savedAddress,
           phone: user?.phone ?? "",
           deliveryFee,
-          deliveryDistanceKm: estimatedDistanceKm,
+          deliveryDistanceRange: selectedDistanceRange,
         }),
         customerName: user?.name ?? "Guest",
       });
@@ -333,6 +262,21 @@ export function CartTab({ onLoginRequired }: { onLoginRequired: () => void }) {
   const resetCheckout = () => {
     setStep("cart");
     setOrderId(null);
+  };
+
+  const distanceRangeLabel = (range: DistanceRange) => {
+    switch (range) {
+      case "0-2":
+        return "0–2 km";
+      case "2-5":
+        return "2–5 km";
+      case "5-8":
+        return "5–8 km";
+      case "8+":
+        return "8+ km";
+      default:
+        return "";
+    }
   };
 
   // SUCCESS COD
@@ -777,37 +721,53 @@ export function CartTab({ onLoginRequired }: { onLoginRequired: () => void }) {
             <span className="font-medium">₹{subtotal}</span>
           </div>
 
+          {/* Delivery Distance Dropdown */}
+          <div className="py-2">
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <MapPin size={13} className="text-orange" />
+              <label
+                htmlFor="delivery-distance"
+                className="text-sm font-semibold text-foreground"
+              >
+                Delivery Distance
+              </label>
+            </div>
+            <select
+              id="delivery-distance"
+              value={selectedDistanceRange}
+              onChange={(e) =>
+                setSelectedDistanceRange(e.target.value as DistanceRange)
+              }
+              className="w-full bg-muted border border-border rounded-lg px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-orange/40 appearance-none cursor-pointer"
+              data-ocid="cart.select"
+            >
+              <option value="">Select distance...</option>
+              <option value="0-2">0–2 km — ₹{deliveryTiers.tier1Fee}</option>
+              <option value="2-5">2–5 km — ₹{deliveryTiers.tier2Fee}</option>
+              <option value="5-8">5–8 km — ₹{deliveryTiers.tier3Fee}</option>
+              <option value="8+">8+ km — ₹{deliveryTiers.tier4Fee}</option>
+            </select>
+            <p className="text-xs text-muted-foreground mt-1">
+              Delivery fee may change based on conditions
+            </p>
+          </div>
+
           {/* Delivery Fee Row */}
           <div className="flex justify-between text-sm items-start">
             <div className="flex flex-col">
               <span className="text-muted-foreground font-medium">
                 Delivery Fee
               </span>
-              <div className="flex items-center gap-1 mt-0.5">
-                {geocodingLoading ? (
-                  <span className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Loader2 size={10} className="animate-spin" />{" "}
-                    Calculating...
-                  </span>
-                ) : geocodingFailed ? (
-                  <span className="text-xs text-amber-500">
-                    (distance could not be calculated)
-                  </span>
-                ) : estimatedDistanceKm !== null ? (
-                  <span className="text-xs text-muted-foreground flex items-center gap-1">
-                    <MapPin size={10} />
-                    {estimatedDistanceKm.toFixed(1)} km from store
-                  </span>
-                ) : null}
-              </div>
-            </div>
-            <span className="font-semibold text-orange">
-              ₹{deliveryFee}
-              {geocodingFailed && (
-                <span className="text-xs text-muted-foreground font-normal ml-1">
-                  (default)
+              {selectedDistanceRange && (
+                <span className="text-xs text-muted-foreground mt-0.5">
+                  {distanceRangeLabel(selectedDistanceRange)} selected
                 </span>
               )}
+            </div>
+            <span className="font-semibold text-orange">
+              {selectedDistanceRange
+                ? `₹${deliveryFee}`
+                : "Select distance above"}
             </span>
           </div>
 
