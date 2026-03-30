@@ -198,7 +198,7 @@ actor {
     tier1MaxKm = 2.0;
     tier2MaxKm = 5.0;
     tier3MaxKm = 8.0;
-    defaultFee = 40.0;
+    defaultFee = 7.0;
     lastUpdated = 0;
   };
 

@@ -521,7 +521,7 @@ export function AdminTab({ onBack }: AdminTabProps) {
     tier1MaxKm: 2,
     tier2MaxKm: 5,
     tier3MaxKm: 8,
-    defaultFee: 40,
+    defaultFee: 7,
   });
   const [savingDeliveryConfig, setSavingDeliveryConfig] = useState(false);
   const [deliveryConfigError, setDeliveryConfigError] = useState("");
